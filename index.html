@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏛️ Sistema SAC — Gestión y Análisis Estadístico</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+
+  <!-- 1. PANTALLA DE CONTROL DE ACCESO -->
+  <div id="loginOverlay">
+    <div class="login-top-bar">
+      <span class="login-header">🔐 Control de acceso</span>
+      <button type="button" class="btn-api-cfg" onclick="configurarUrlApiManual()" title="Configurar conexión API">⚙️</button>
+    </div>
+
+    <div class="login-card">
+      <h2>🛡️ Identificación</h2>
+
+      <div id="bloqueFormularioLogin">
+        <p>Ingresá tu correo electrónico autorizado para acceder exclusivamente a los reclamos según tu dependencia/asunto:</p>
+        <input type="email" id="inpMailLogin" class="login-input" placeholder="tu.correo@gmail.com">
+        <button type="button" class="btn-primary" id="btnVerificarLogin" onclick="validarCorreoAcceso()">
+          🔑 Verificar correo y filtrar mis reclamos
+        </button>
+        <div id="indicadorCargaInicial" class="sync-hint">⚡ Conectando con base de datos SAC...</div>
+      </div>
+
+      <div id="cajaResultadoLogin" class="msg"></div>
+    </div>
+  </div>
+
+  <!-- 2. ENTORNO PRINCIPAL UNIFICADO FULL-SCREEN -->
+  <div id="appShell">
+    <header class="topbar">
+      <div class="brand">
+        <span>🏛️ SISTEMA MUNICIPAL DE ATENCIÓN CIUDADANA (SAC)</span>
+        <span id="badgeRolActivo" class="role-badge"></span>
+        <span id="badgeEstadoSync" class="sync-pill">🟢 En línea</span>
+      </div>
+
+      <nav class="nav-modules">
+        <button type="button" class="mod-btn active" id="navPlanilla" onclick="abrirModuloPrincipal('PLANILLA')">📋 Planilla Operativa</button>
+        <button type="button" class="mod-btn hidden" id="navVivo" onclick="abrirModuloPrincipal('VIVO')">📊 Panel en vivo</button>
+        <button type="button" class="mod-btn hidden" id="navCarga" onclick="abrirModuloPrincipal('CARGA')">🚀 Carga de planillas</button>
+        <button type="button" class="mod-btn hidden" id="navPermisos" onclick="abrirModuloPrincipal('PERMISOS')">🔐 Asignar permisos</button>
+        <button type="button" class="mod-btn hidden" id="navConfig" onclick="abrirModuloPrincipal('CONFIG')">⚙️ Configuración</button>
+        <button type="button" class="mod-btn hidden" id="navBackup" onclick="ejecutarBackupGeneral()">💾 Generar backup</button>
+        <button type="button" class="mod-btn btn-f11" onclick="alternarPantallaCompleta()">⛶ F11</button>
+        <button type="button" class="mod-btn" onclick="sincronizarConServidor(true)" title="Sincronizar ahora">🔄</button>
+        <button type="button" class="mod-btn btn-logout" onclick="cerrarSesionSAC()" title="Cambiar de usuario">🚪 Salir</button>
+      </nav>
+    </header>
+
+    <!-- MÓDULO 1: PLANILLA OPERATIVA (PENDIENTES Y REITERADOS) -->
+    <section class="module-pane active" id="modPLANILLA">
+      <div class="sheet-toolbar">
+        <div class="switch-group">
+          <button type="button" class="sw-btn active-sec" id="btnSecSP" onclick="cambiarSecretariaActiva('SERVICIOS_PUBLICOS')">🏢 Servicios Públicos</button>
+          <button type="button" class="sw-btn" id="btnSecOP" onclick="cambiarSecretariaActiva('OBRAS_PUBLICAS')">🏗️ Obras Públicas</button>
+          <span class="divider">|</span>
+          <button type="button" class="sw-btn active-ptes" id="btnTabPtes" onclick="cambiarTipoReclamoActivo('Pendientes')">
+            📋 Ver mis reclamos pendientes (<span id="cntPtes">0</span>)
+          </button>
+          <button type="button" class="sw-btn" id="btnTabReit" onclick="cambiarTipoReclamoActivo('Reiterados')">
+            🔁 Ver mis reclamos reiterados (<span id="cntReit">0</span>)
+          </button>
+        </div>
+
+        <div class="switch-group">
+          <!-- Conmutador exclusivo para Administradores que también tienen reclamos como Gestor -->
+          <button type="button" class="sw-btn hidden" id="btnSwitchAdminGestor" onclick="alternarModoAdminGestor()"></button>
+
+          <select id="selFiltroDepTabla" onchange="renderizarGrillaReclamos()">
+            <option value="TODAS">🔍 Todas las dependencias</option>
+          </select>
+          <select id="selFiltroEstadoTabla" onchange="renderizarGrillaReclamos()">
+            <option value="TODOS">📋 Todos los reclamos</option>
+            <option value="INCOMPLETOS">⚠️ Solo pendientes de completar</option>
+            <option value="COMPLETOS">✅ Solo completados</option>
+          </select>
+          <input type="text" id="inpBuscarGrilla" oninput="renderizarGrillaReclamos()" placeholder="🔎 Buscar ID, asunto, barrio, gestor...">
+          <button type="button" class="sw-btn" onclick="descargarVistaActualCSV()" title="Descargar tabla filtrada a mi PC (.csv)">📥 Descargar CSV</button>
+        </div>
+      </div>
+
+      <div class="sheet-container">
+        <table class="sac-grid" id="tablaReclamosDOM"></table>
+      </div>
+    </section>
+
+    <!-- MÓDULO 2: PANEL EN VIVO (HABILITADO CON EL TILDE DE "PANEL EN VIVO") -->
+    <section class="module-pane" id="modVIVO">
+      <div class="filterbar-vivo">
+        <div class="f-group">
+          <label>1. Secretaría</label>
+          <select id="fVivoSec" onchange="recalcularPanelEnVivo()">
+            <option value="TODAS">Todas las Secretarías</option>
+            <option value="SERVICIOS_PUBLICOS">Servicios Públicos</option>
+            <option value="OBRAS_PUBLICAS">Obras Públicas</option>
+          </select>
+        </div>
+        <div class="f-group">
+          <label>2. Clase de Reclamos</label>
+          <select id="fVivoClase" onchange="recalcularPanelEnVivo()">
+            <option value="Pendientes">📋 Reclamos Pendientes</option>
+            <option value="Reiterados">🔁 Reclamos Reiterados</option>
+          </select>
+        </div>
+        <div class="f-group">
+          <label>3. Fecha Ingreso Desde</label>
+          <input type="date" id="fVivoDesde" onchange="recalcularPanelEnVivo()">
+        </div>
+        <div class="f-group">
+          <label>4. Fecha Ingreso Hasta</label>
+          <input type="date" id="fVivoHasta" onchange="recalcularPanelEnVivo()">
+        </div>
+        <div class="f-group">
+          <label>5. Estado Informado</label>
+          <select id="fVivoEstado" onchange="recalcularPanelEnVivo()">
+            <option value="TODAS">Todos (Con y sin respuesta)</option>
+            <option value="CON_RESPUESTA">✅ Solo con Estado cargado</option>
+            <option value="SIN_RESPUESTA">⏳ Solo sin Estado cargado</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="kpi-strip" id="kpiStripVivo"></div>
+
+      <div class="nav-subtabs">
+        <button type="button" class="sub-tab active" onclick="abrirSubTabVivo(0)">📌 1. Panorama y Estados en Vivo</button>
+        <button type="button" class="sub-tab" onclick="abrirSubTabVivo(1)">🏢 2. Dependencias y Equidad de Gestores</button>
+        <button type="button" class="sub-tab" onclick="abrirSubTabVivo(2)">🗺️ 3. Distribución Territorial (Barrios)</button>
+        <button type="button" class="sub-tab" onclick="abrirSubTabVivo(3)">📊 4. Tipología y Pareto de Asuntos</button>
+        <button type="button" class="sub-tab" onclick="abrirSubTabVivo(4)">📅 5. Evolución Temporal, Canales y Rango Etario DNI</button>
+        <button type="button" class="sub-tab" onclick="abrirSubTabVivo(5)">🛡️ 6. Calidad de Datos</button>
+      </div>
+
+      <div class="content-scroll">
+        <div class="sub-pane active" id="vivoPane0">
+          <div class="grid-3">
+            <div class="card-panel"><h4>📋 Respuestas por Estado</h4><div class="chart-box"><canvas id="chVivoCausas"></canvas></div></div>
+            <div class="card-panel"><h4>👁️ Visualizados vs. No Visualizados</h4><div class="chart-box"><canvas id="chVivoVis"></canvas></div></div>
+            <div class="card-panel"><h4>📇 Tipo de Contacto / Canal</h4><div class="chart-box"><canvas id="chVivoTipos"></canvas></div></div>
+          </div>
+          <div class="grid-2">
+            <div class="card-panel"><h4>Conteo en Vivo por Estado</h4><div class="table-scroll"><table id="tblVivoCausas"></table></div></div>
+            <div class="card-panel"><h4>Comparación entre Secretarías</h4><div class="table-scroll"><table id="tblVivoSec"></table></div></div>
+          </div>
+        </div>
+
+        <div class="sub-pane" id="vivoPane1">
+          <div class="grid-2">
+            <div class="card-panel"><h4>🏢 Reclamos por Dependencia</h4><div class="chart-box"><canvas id="chVivoDeps"></canvas></div></div>
+            <div class="card-panel"><h4>⚖️ Carga por Gestor vs. Carga Equitativa</h4><div class="chart-box"><canvas id="chVivoGestores"></canvas></div></div>
+          </div>
+          <div class="grid-2">
+            <div class="card-panel"><h4>Ranking por Dependencia y % de Gestión</h4><div class="table-scroll"><table id="tblVivoDeps"></table></div></div>
+            <div class="card-panel"><h4>Diagnóstico y Redistribución de Gestores</h4><div class="table-scroll"><table id="tblVivoGestores"></table></div></div>
+          </div>
+        </div>
+
+        <div class="sub-pane" id="vivoPane2">
+          <div class="grid-2">
+            <div class="card-panel"><h4>🗺️ Top 15 Barrios con Mayor Volumen</h4><div class="chart-box"><canvas id="chVivoBarrios"></canvas></div></div>
+            <div class="card-panel"><h4>Ranking Territorial y Asunto Principal por Barrio</h4><div class="table-scroll"><table id="tblVivoBarrios"></table></div></div>
+          </div>
+        </div>
+
+        <div class="sub-pane" id="vivoPane3">
+          <div class="grid-2">
+            <div class="card-panel"><h4>📊 Principales Asuntos / Problemas (Top 12)</h4><div class="chart-box"><canvas id="chVivoAsuntos"></canvas></div></div>
+            <div class="card-panel"><h4>Matriz de Pareto y Curva ABC</h4><div class="table-scroll"><table id="tblVivoAsuntos"></table></div></div>
+          </div>
+        </div>
+
+        <div class="sub-pane" id="vivoPane4">
+          <div class="grid-2">
+            <div class="card-panel"><h4>📅 Distribución por Día de la Semana</h4><div class="chart-box"><canvas id="chVivoDias"></canvas></div></div>
+            <div class="card-panel"><h4>📡 Vías de Captación / Rango Etario Estimado (DNI en Reiterados)</h4><div class="chart-box"><canvas id="chVivoVias"></canvas></div></div>
+          </div>
+          <div class="grid-2">
+            <div class="card-panel"><h4>Detalle por Día y Quincena</h4><div class="table-scroll"><table id="tblVivoTemporal"></table></div></div>
+            <div class="card-panel"><h4>Canales, Bocas y Perfil Etario (DNI)</h4><div class="table-scroll"><table id="tblVivoCanales"></table></div></div>
+          </div>
+        </div>
+
+        <div class="sub-pane" id="vivoPane5">
+          <div class="card-panel"><h4>🛡️ Auditoría Cuantitativa de Calidad de Datos</h4><div class="table-scroll"><table id="tblVivoCalidad"></table></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MÓDULO 3: CENTRO DE CARGA Y BACKUP LOCAL / DRIVE -->
+    <section class="module-pane" id="modCARGA">
+      <div class="content-scroll">
+        <div class="grid-2">
+          <div class="card-panel">
+            <h4>📥 Cargar crudo (.xlsx desde Drive o desde tu PC)</h4>
+            <div class="grid-2">
+              <div>
+                <label class="lbl">🏢 1. ¿A qué Secretaría cargar los datos?</label>
+                <select id="cargaSec">
+                  <option value="SERVICIOS_PUBLICOS">Secretaría de Servicios Públicos</option>
+                  <option value="OBRAS_PUBLICAS">Secretaría de Obras Públicas</option>
+                </select>
+              </div>
+              <div>
+                <label class="lbl">📋 2. ¿Qué clase de reclamos son?</label>
+                <select id="cargaTipo">
+                  <option value="Pendientes">Reclamos Pendientes</option>
+                  <option value="Reiterados">Reclamos Reiterados</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="margin-bottom:10px;">
+              <label class="lbl">📂 Opción A: Archivo crudo en carpeta "Carga_Crudos_SAC" (Drive)</label>
+              <div style="display:flex; gap:6px;">
+                <select id="selArchivoCrudoDrive" style="flex:1;">
+                  <option value="">Hacé clic en "Buscar en Drive"...</option>
+                </select>
+                <button type="button" class="sw-btn" onclick="listarArchivosCrudosDrive()">🔄 Buscar en Drive</button>
+              </div>
+            </div>
+
+            <div style="margin-bottom:10px;">
+              <label class="lbl">💻 Opción B: O seleccionar archivo .xlsx directo desde tu PC</label>
+              <input type="file" id="inpArchivoCrudoPC" accept=".xlsx,.xls">
+            </div>
+
+            <div class="grid-2">
+              <div>
+                <label class="lbl">📅 4. Fecha de Ingreso Desde (Opcional)</label>
+                <input type="date" id="cargaFechaDesde">
+              </div>
+              <div>
+                <label class="lbl">📅 5. Fecha de Ingreso Hasta (Opcional)</label>
+                <input type="date" id="cargaFechaHasta">
+              </div>
+            </div>
+
+            <label class="check-row">
+              <input type="checkbox" id="chkBackupCarga" checked>
+              <span>💾 <b>Resguardo automático previo:</b> Guardar backup en carpeta <em>BackUp_Panel</em> de Drive antes de cargar.</span>
+            </label>
+
+            <button type="button" class="btn-primary" style="margin-top:10px;" onclick="procesarCargaCrudo()">🚀 Ejecutar</button>
+          </div>
+
+          <div>
+            <div class="card-panel" style="margin-bottom:14px; border-left:4px solid #059669;">
+              <h4>⚡ Importación Directa y Descarga Local a tu PC</h4>
+              <p style="color:#475569; margin:0 0 10px 0;">Podés traer en 1 clic los datos y permisos de tus planillas anteriores de Drive o descargar un Backup completo a tu computadora:</p>
+              <button type="button" class="btn-primary" style="background:#059669; margin-bottom:8px;" onclick="importarPlanillasExistentes()">
+                📥 Importar datos y permisos de mis planillas actuales de Drive
+              </button>
+              <button type="button" class="btn-primary" style="background:#0f766e;" onclick="descargarBackupCompletoEnPC()">
+                💻 Descargar Backup Consolidado Local en mi PC (.csv / Excel)
+              </button>
+            </div>
+
+            <div class="card-panel" style="border-left:4px solid #dc2626;">
+              <h4>🧹 2. Vaciar / Limpiar hoja</h4>
+              <div class="grid-2">
+                <div>
+                  <label class="lbl">🏢 1. Seleccionar Secretaría a Limpiar</label>
+                  <select id="limpiarSec">
+                    <option value="SERVICIOS_PUBLICOS">Secretaría de Servicios Públicos</option>
+                    <option value="OBRAS_PUBLICAS">Secretaría de Obras Públicas</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="lbl">📋 2. Seleccionar Pestaña a Vaciar</label>
+                  <select id="limpiarTipo">
+                    <option value="Pendientes">Pestaña: Pendientes</option>
+                    <option value="Reiterados">Pestaña: Reiterados</option>
+                  </select>
+                </div>
+              </div>
+              <label class="check-row" style="margin-bottom:10px;">
+                <input type="checkbox" id="chkBackupLimpiar" checked>
+                <span>💾 <b>Guardar Backup en BackUp_Panel (Drive) antes de vaciar la hoja.</b></span>
+              </label>
+              <button type="button" class="btn-primary" style="background:#dc2626;" onclick="procesarVaciadoHoja()">🧹 Vaciar hoja</button>
+            </div>
+          </div>
+        </div>
+        <div id="cajaEstadoCarga" class="msg"></div>
+      </div>
+    </section>
+
+    <!-- MÓDULO 4: ADMINISTRADOR DE PERMISOS + AUDITORÍA DE REPETIDOS Y SIN ASIGNAR -->
+    <section class="module-pane" id="modPERMISOS">
+      <div class="perm-wrap">
+        <div class="mode-tabs">
+          <button type="button" class="mode-tab active" id="tabModoAsignar" onclick="cambiarModoPermisos('ASIGNAR')">
+            🔐 1. Asignación de Correos, Rangos, Dependencias y Asuntos
+          </button>
+          <button type="button" class="mode-tab" id="tabModoAuditoria" onclick="cambiarModoPermisos('AUDITORIA')">
+            📊 2. Auditoría: Repetidos <span class="pill-cnt pill-warn" id="badgeTotalRepetidos">0</span> y Sin Asignar <span class="pill-cnt pill-danger" id="badgeTotalSinAsignar">0</span>
+          </button>
+        </div>
+
+        <div class="top-bar-perm">
+          <div>
+            <label class="lbl">🏢 1. SELECCIONAR SECRETARÍA A CONFIGURAR</label>
+            <select id="selSecPerm" onchange="alCambiarSecretariaPerm()">
+              <option value="SERVICIOS_PUBLICOS">Secretaría de Servicios Públicos</option>
+              <option value="OBRAS_PUBLICAS">Secretaría de Obras Públicas</option>
+            </select>
+          </div>
+          <div>
+            <label class="lbl">🗂️ 2. COLUMNA QUE AGRUPA Y ASIGNA "PENDIENTES Y "REITERADOS""</label>
+            <select id="selColPtesPerm" onchange="renderizarModuloPermisos()">
+              <option value="COL_O">Columna O: Dts. Gestor-Dependencia (Ptes) / Col. I: Dependencia (Reits)</option>
+              <option value="COL_M">Columna M: Dts. Área-Dependencia principal (Ptes) / Col. I: Dependencia (Reits)</option>
+              <option value="COL_F_D">Columna F: Asunto (Pendientes) / Columna D: Problema (Reiterados)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- VISTA 1: ASIGNACIÓN -->
+        <div class="main-grid-perm" id="vistaPermAsignar">
+          <div class="box">
+            <div class="box-head">
+              <span>👤 Correos Autorizados</span>
+              <span id="badgeCantCorreos" style="font-size:11px; color:var(--muted);">0 correos</span>
+            </div>
+            <div class="add-mail-row">
+              <input type="email" id="inpNuevoCorreoPerm" placeholder="ej: persona1@gmail.com" onkeydown="if(event.key==='Enter')agregarCorreoPerm()">
+              <button type="button" class="btn-sm" onclick="agregarCorreoPerm()">+ Añadir</button>
+            </div>
+            <div class="email-list" id="listaCorreosPerm"></div>
+          </div>
+
+          <div class="box">
+            <div class="box-head">
+              <span id="lblCorreoSeleccionadoPerm">🎯 Seleccioná o agregá un correo a la izquierda para tildar sus dependencias y asuntos</span>
+            </div>
+
+            <!-- BARRA DE TILDES ESPECIALES: ADMINISTRADOR, PANEL EN VIVO Y MODERADOR (PUNTO 6) -->
+            <div class="admin-banner" id="bannerRolesEspeciales" style="display:none;">
+              <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
+                <label title="Permite editar cualquier reclamo de la Secretaría (y si tildás abajo, también puede filtrar sus propios reclamos)">
+                  <input type="checkbox" id="chkEsAdminPerm" onchange="alCambiarTildeEspecial('esAdmin', this.checked)">
+                  <span>👑 Administrador</span>
+                </label>
+                <label title="Habilita a este usuario para ver la pestaña de estadísticas '📊 Panel en vivo'">
+                  <input type="checkbox" id="chkVerPanelVivoPerm" onchange="alCambiarTildeEspecial('verPanelEnVivo', this.checked)">
+                  <span>📊 Habilitar "Panel en vivo"</span>
+                </label>
+                <label title="Permite ver y editar todos los reclamos de esta Secretaría sin tener acceso a cargar crudos ni cambiar permisos">
+                  <input type="checkbox" id="chkEsModeradorPerm" onchange="alCambiarTildeEspecial('esModerador', this.checked)">
+                  <span>🛡️ Moderador de Secretaría</span>
+                </label>
+              </div>
+              <button type="button" class="btn-both-sec" onclick="aplicarRolEnAmbasSecretarias()">
+                🌐 Aplicar en AMBAS Secretarías
+              </button>
+            </div>
+
+            <div class="dep-cols">
+              <div class="dep-panel">
+                <div class="dep-header-block">
+                  <span class="dep-title" style="color:#1e3a8a;">📋 PENDIENTES</span>
+                  <div class="dep-actions-row">
+                    <button type="button" class="btn-sm btn-outline" onclick="marcarTodasPerm('Pendientes', true)">✓ Seleccionar todas</button>
+                    <button type="button" class="btn-sm btn-outline" onclick="marcarTodasPerm('Pendientes', false)">✕ Desmarcar todas</button>
+                  </div>
+                  <div class="dep-manual-row">
+                    <input type="text" id="inpNuevaDepPtes" placeholder="Agregar dependencia o asunto manual..." onkeydown="if(event.key==='Enter')agregarItemManualPerm('Pendientes')">
+                    <button type="button" class="btn-sm btn-outline" onclick="agregarItemManualPerm('Pendientes')">+</button>
+                  </div>
+                </div>
+                <div class="dep-list" id="listaDepsPendientes"></div>
+              </div>
+
+              <div class="dep-panel">
+                <div class="dep-header-block">
+                  <span class="dep-title" style="color:#7c2d12;">🔁 REITERADOS</span>
+                  <div class="dep-actions-row">
+                    <button type="button" class="btn-sm btn-outline" onclick="marcarTodasPerm('Reiterados', true)">✓ Seleccionar todas</button>
+                    <button type="button" class="btn-sm btn-outline" onclick="marcarTodasPerm('Reiterados', false)">✕ Desmarcar todas</button>
+                  </div>
+                  <div class="dep-manual-row">
+                    <input type="text" id="inpNuevaDepReit" placeholder="Agregar dependencia o problema manual..." onkeydown="if(event.key==='Enter')agregarItemManualPerm('Reiterados')">
+                    <button type="button" class="btn-sm btn-outline" onclick="agregarItemManualPerm('Reiterados')">+</button>
+                  </div>
+                </div>
+                <div class="dep-list" id="listaDepsReiterados"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VISTA 2: AUDITORÍA DE REPETIDOS Y SIN ASIGNAR -->
+        <div class="audit-grid" id="vistaPermAuditoria">
+          <div class="audit-box">
+            <div class="audit-head" style="color:#92400e;">
+              <span>👥 PENDIENTES: Dependencias / Asuntos REPETIDOS (2 o más gestores)</span>
+              <span class="pill-cnt pill-warn" id="cntRepPtes">0</span>
+            </div>
+            <div class="audit-list" id="listaRepPtes"></div>
+          </div>
+          <div class="audit-box">
+            <div class="audit-head" style="color:#92400e;">
+              <span>👥 REITERADOS: Dependencias / Problemas REPETIDOS (2 o más gestores)</span>
+              <span class="pill-cnt pill-warn" id="cntRepReit">0</span>
+            </div>
+            <div class="audit-list" id="listaRepReit"></div>
+          </div>
+          <div class="audit-box">
+            <div class="audit-head" style="color:#991b1b;">
+              <span>🚨 PENDIENTES: Dependencias / Asuntos SIN GESTOR ASIGNADO</span>
+              <span class="pill-cnt pill-danger" id="cntSinPtes">0</span>
+            </div>
+            <div class="audit-list" id="listaSinPtes"></div>
+          </div>
+          <div class="audit-box">
+            <div class="audit-head" style="color:#991b1b;">
+              <span>🚨 REITERADOS: Dependencias / Problemas SIN GESTOR ASIGNADO</span>
+              <span class="pill-cnt pill-danger" id="cntSinReit">0</span>
+            </div>
+            <div class="audit-list" id="listaSinReit"></div>
+          </div>
+        </div>
+
+        <div class="footer-bar-perm">
+          <button type="button" class="btn-footer btn-fast" onclick="guardarPermisosWeb(false)">💾 Guardar mapeo</button>
+          <button type="button" class="btn-footer btn-apply" onclick="guardarPermisosWeb(true)">⚡ Guardar, agrupar y aplicar</button>
+        </div>
+        <div id="msgEstadoPerm" class="msg"></div>
+      </div>
+    </section>
+
+    <!-- MÓDULO 5: CONFIGURACIÓN SIN TOCAR CÓDIGO INTERNO (PUNTO 7) -->
+    <section class="module-pane" id="modCONFIG">
+      <div class="content-scroll">
+        <div class="card-panel" style="margin-bottom:14px;">
+          <h4>⚙️ Parámetros Dinámicos del Sistema (Modificables sin tocar el código fuente)</h4>
+          <p style="color:#475569; margin:0 0 12px 0;">Desde acá podés agregar, editar o eliminar opciones de las listas desplegables de Estados (Pendientes y Reiterados) y los nombres de las carpetas de Google Drive.</p>
+
+          <div class="grid-2">
+            <div>
+              <label class="lbl">📋 Opciones desplegables en "Estado del pendiente" (1 por línea)</label>
+              <textarea id="cfgOpcionesPtes" rows="12" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; font-size:12.5px;"></textarea>
+            </div>
+            <div>
+              <label class="lbl">🔁 Opciones desplegables en "Estado de reincidencia" (1 por línea)</label>
+              <textarea id="cfgOpcionesReit" rows="12" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; font-size:12.5px;"></textarea>
+            </div>
+          </div>
+
+          <div class="grid-3" style="margin-top:12px;">
+            <div>
+              <label class="lbl">📁 Carpeta Principal en Drive</label>
+              <input type="text" id="cfgCarpetaProyecto">
+            </div>
+            <div>
+              <label class="lbl">📂 Carpeta de Excel Crudos en Drive</label>
+              <input type="text" id="cfgCarpetaCrudos">
+            </div>
+            <div>
+              <label class="lbl">💾 Carpeta de Backups en Drive</label>
+              <input type="text" id="cfgCarpetaBackup">
+            </div>
+          </div>
+
+          <button type="button" class="btn-primary" style="margin-top:14px;" onclick="guardarParametrosSistemaDesdeWeb()">
+            💾 Guardar Parámetros del Sistema
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+</body>
+</html>
