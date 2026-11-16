@@ -47,18 +47,16 @@ html, body { height: 100%; width: 100%; margin: 0; padding: 0; background: var(-
 .btn-primary:hover { background: var(--primary-hover); }
 .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.welcome-title { font-size: 20px; font-weight: 800; color: #065f46; margin: 4px 0 14px 0; text-align: center; }
-.link-btn {
-  display: block; width: 100%; padding: 14px; margin: 8px auto; background: var(--emerald);
-  color: #fff; border: none; border-radius: 10px; font-weight: 800; font-size: 14.5px; cursor: pointer;
+.welcome-pill {
+  background: rgba(16, 185, 129, 0.16);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  color: #ecfdf5;
+  padding: 5px 11px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
 }
-.link-btn:hover { background: var(--emerald-hover); }
-.admin-btn {
-  display: block; width: 100%; padding: 12px; margin: 10px auto 4px auto;
-  background: #fef3c7; color: #92400e; border: 2px solid #f59e0b; border-radius: 10px;
-  font-weight: 800; font-size: 13.5px; cursor: pointer;
-}
-.counter-lbl { font-size: 13.5px; font-weight: 700; color: var(--navy); margin-top: 8px; }
 
 .msg { margin-top: 12px; padding: 14px; border-radius: 10px; font-size: 13.5px; display: none; line-height: 1.5; text-align: center; }
 .msg.err { display: block; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
