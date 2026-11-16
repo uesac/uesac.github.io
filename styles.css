@@ -346,17 +346,10 @@ textarea.motivo-input:focus { background: #fff; border-color: var(--primary); }
   select.chip-select, textarea.motivo-input { min-width: 100%; width: 100%; font-size: 13.5px; }
 }
 
-@keyframes spinClock {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-.clock-spinner {
-  font-size: 42px;
-  display: inline-block;
-  animation: spinClock 2.5s linear infinite;
-}
+/* ============================================================================
+ * VENTANA DE CARGA SUPERPUESTA CON DIFUMINADO Y RELOJ ANALÓGICO
+ * ============================================================================ */
 
-/* Fondo general que bloquea los clics detrás con difuminado */
 .overlay-backdrop {
   position: fixed;
   top: 0;
@@ -370,7 +363,6 @@ textarea.motivo-input:focus { background: #fff; border-color: var(--primary); }
   z-index: 9999;
 }
 
-/* Ventana grande con difuminado blanco tipo cristal */
 .modal-difuminado {
   width: 90%;
   max-width: 720px;
@@ -387,10 +379,8 @@ textarea.motivo-input:focus { background: #fff; border-color: var(--primary); }
   align-items: center;
   padding: 2rem;
   text-align: center;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Diseño del reloj analógico */
 .reloj-icono {
   width: 76px;
   height: 76px;
@@ -441,7 +431,6 @@ textarea.motivo-input:focus { background: #fff; border-color: var(--primary); }
   to { transform: rotate(360deg); }
 }
 
-/* Tipografía de la ventana de carga */
 .titulo-conexion {
   margin: 0 0 8px 0;
   font-size: 1.5rem;
