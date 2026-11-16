@@ -12,6 +12,18 @@
 
   <!-- 1. PANTALLA DE CONTROL DE ACCESO -->
   <div id="loginOverlay">
+    <div id="servidorCargandoOverlay" class="overlay-backdrop">
+      <div class="modal-difuminado">
+        <div class="reloj-icono">
+          <div class="aguja-minutos"></div>
+          <div class="aguja-horas"></div>
+          <div class="centro-reloj"></div>
+        </div>
+        <h2 class="titulo-conexion">Conectando con servidor...</h2>
+        <p class="subtitulo-conexion">Aguarde un instante por favor</p>
+      </div>
+    </div>
+
     <div class="login-top-bar">
       <span class="login-header">🔐 Control de acceso</span>
     </div>
@@ -19,14 +31,7 @@
     <div class="login-card">
       <h2>🛡️ Identificación</h2>
 
-      <div id="bloqueFormularioLogin" style="position: relative;">
-        <!-- Cortina de carga inicial con animación de reloj -->
-        <div id="servidorCargandoOverlay" style="position: absolute; inset: -32px -34px; background: rgba(255, 255, 255, 0.96); z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 16px;">
-          <div class="clock-spinner">🕒</div>
-          <p style="color: #0f172a; font-weight: 800; margin-top: 12px; font-size: 15px;">Conectando con servidor...</p>
-          <span id="txtIntentosConexion" style="font-size: 11.5px; color: #64748b; margin-top: 4px;">Aguardá un instante por favor</span>
-        </div>
-
+      <div id="bloqueFormularioLogin">
         <input type="email" id="inpMailLogin" class="login-input" placeholder="tu.correo@gmail.com" autocomplete="username" disabled>
         <input type="password" id="inpPassLogin" class="login-input" placeholder="Contraseña" autocomplete="current-password" disabled>
         <button type="button" class="btn-primary" id="btnVerificarLogin" onclick="validarCorreoAcceso()" disabled>
@@ -35,6 +40,10 @@
         <div id="indicadorCargaInicial" class="sync-hint">🟢 Conectado</div>
       </div>
 
+      <div id="cajaResultadoLogin" class="msg"></div>
+    </div>
+  </div>
+  
   <!-- 1.B MODAL OBLIGATORIO E IMPOSIBLE DE CERRAR PARA CAMBIO DE CONTRASEÑA INICIAL -->
   <div id="modalCambioPassword" class="hidden">
     <div class="login-card">
