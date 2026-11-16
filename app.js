@@ -1,9 +1,3 @@
-/**
- * ============================================================================
- * LÓGICA FRONTEND DE ALTA EFICIENCIA Y SEGURIDAD — UESAC.GITHUB.IO (app.js)
- * ============================================================================
- */
-
 var API_URL = 'https://script.google.com/macros/s/AKfycbyLFxbzBKqP2BRIXoywWpFgxdDXImNetYSVerQPYFDgJ91ChUYisEm3BAMdgKDoRMnd/exec';
 var SESSION_TOKEN_KEY = 'sac_session_token_v2';
 var SESSION_CACHE_KEY = 'sac_session_data_v2';
@@ -16,9 +10,10 @@ var TIPO_ACTIVO = 'Pendientes';
 var MODO_VISTA_ADMIN_GESTOR = 'MIS_ASIGNADOS';
 var CORREO_EDITANDO_PERM = null;
 var CHARTS_VIVO = {};
+var INTERVALO_RADAR_ID = null;
 
 /* ============================================================================
- * 1. ARRANQUE, PING DE CONEXIÓN Y CONTROL DE ACCESO
+ * 1. ARRANQUE, PING DE CONEXIÓN, RADAR EN VIVO Y CONTROL DE ACCESO
  * ============================================================================ */
 
 window.addEventListener('DOMContentLoaded', function() {
@@ -93,6 +88,42 @@ function llamarAPI(accion, payload, onSuccess, onError) {
   .catch(function(err) {
     if (onError) onError(err.message || String(err));
   });
+}
+
+function iniciarRadarTiempoReal() {
+  if (INTERVALO_RADAR_ID) clearInterval(INTERVALO_RADAR_ID);
+
+  // Consulta ligera cada 12 segundos cuando la pestaña está activa
+  INTERVALO_RADAR_ID = setInterval(function() {
+    if (!TOKEN_ACTUAL || !STATE || document.visibilityState !== 'visible') return;
+
+    // No interrumpir si el usuario está escribiendo dentro de un motivo o seleccionando un estado
+    var elActivo = document.activeElement;
+    var estaEditando = elActivo && (
+      elActivo.classList.contains('motivo-input') ||
+      elActivo.classList.contains('chip-select')
+    );
+    if (estaEditando) return;
+
+    llamarAPI('SINCRONIZAR_SI_HAY_CAMBIOS', {
+      versionCliente: STATE.versionDatos || ''
+    }, function(res) {
+      if (res && res.hayCambios && res.paquete) {
+        STATE = res.paquete;
+        USUARIO_SESION = res.paquete.perfilUsuario;
+        try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(STATE)); } catch (e) {}
+
+        actualizarPillSync('🟢 Actualizado en vivo (' + STATE.actualizadoEn + ')');
+        actualizarContadoresYSelectores();
+        renderizarGrillaReclamos();
+
+        var modVivo = document.getElementById('modVIVO');
+        if (modVivo && modVivo.classList.contains('active')) {
+          recalcularPanelEnVivo();
+        }
+      }
+    }, function() {});
+  }, 12000);
 }
 
 function obtenerSaludoHorario() {
@@ -230,6 +261,10 @@ function sincronizarConServidor(mostrarAviso) {
     actualizarPillSync('🟢 Conectado (' + paquete.actualizadoEn + ')');
     actualizarContadoresYSelectores();
     renderizarGrillaReclamos();
+    var modVivo = document.getElementById('modVIVO');
+    if (modVivo && modVivo.classList.contains('active')) {
+      recalcularPanelEnVivo();
+    }
   }, function() {
     actualizarPillSync('⚠️ Error de red');
   });
@@ -280,6 +315,7 @@ function abrirEntornoTrabajo(tipoInicial) {
 
   cambiarSecretariaActiva(SEC_ACTIVA);
   cambiarTipoReclamoActivo(TIPO_ACTIVO);
+  iniciarRadarTiempoReal();
 }
 
 function alternarModoAdminGestor() {
@@ -303,6 +339,10 @@ function actualizarTextoBotonHibrido() {
 }
 
 function limpiarTodoSessionStorage() {
+  if (INTERVALO_RADAR_ID) {
+    clearInterval(INTERVALO_RADAR_ID);
+    INTERVALO_RADAR_ID = null;
+  }
   try { sessionStorage.clear(); } catch (e) {}
   STATE = null;
   USUARIO_SESION = null;
@@ -381,13 +421,11 @@ function actualizarContadoresYSelectores() {
   var listaAct = (TIPO_ACTIVO === 'Pendientes') ? ptes : reit;
   var depsMap = {};
 
-  // Incluir las dependencias presentes en los reclamos visibles del usuario
   listaAct.forEach(function(r) {
     var d = (TIPO_ACTIVO === 'Pendientes') ? (r.gestorDep || r.depPrincipal) : r.dependencia;
     if (d) depsMap[d] = true;
   });
 
-  // Incluir también las dependencias asignadas directamente al usuario en caso de que alguna tenga 0 reclamos
   if (USUARIO_SESION && USUARIO_SESION[SEC_ACTIVA] && USUARIO_SESION[SEC_ACTIVA][TIPO_ACTIVO]) {
     if (!USUARIO_SESION.esAdmin || MODO_VISTA_ADMIN_GESTOR === 'MIS_ASIGNADOS') {
       USUARIO_SESION[SEC_ACTIVA][TIPO_ACTIVO].forEach(function(asig) {
@@ -575,6 +613,10 @@ function guardarFilaOptimista(idContacto, filaHoja) {
     motivo: valMot
   }, function(res) {
     if (tdResp) tdResp.textContent = res.ultResp;
+    if (res.versionDatos && STATE) {
+      STATE.versionDatos = res.versionDatos;
+      try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(STATE)); } catch (e) {}
+    }
     actualizarPillSync('✅ Guardado (' + res.ultResp + ')');
   }, function() {
     actualizarPillSync('⚠️ Reintentando guardado...');
