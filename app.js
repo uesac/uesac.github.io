@@ -1,3 +1,9 @@
+/**
+ * ============================================================================
+ * LÓGICA FRONTEND DE ALTA EFICIENCIA, SEGURIDAD Y RADAR EN VIVO — UESAC.GITHUB.IO
+ * ============================================================================
+ */
+
 var API_URL = 'https://script.google.com/macros/s/AKfycbyLFxbzBKqP2BRIXoywWpFgxdDXImNetYSVerQPYFDgJ91ChUYisEm3BAMdgKDoRMnd/exec';
 var SESSION_TOKEN_KEY = 'sac_session_token_v2';
 var SESSION_CACHE_KEY = 'sac_session_data_v2';
@@ -282,7 +288,6 @@ function abrirEntornoTrabajo(tipoInicial) {
   }
 
   var tieneOtrosModulos = Boolean(u.esAdmin || u.verPanelEnVivo);
-  document.getElementById('navPlanilla').classList.toggle('hidden', !tieneOtrosModulos);
   document.getElementById('navVivo').classList.toggle('hidden', !u.verPanelEnVivo);
   document.getElementById('navCarga').classList.toggle('hidden', !u.esAdmin);
   document.getElementById('navPermisos').classList.toggle('hidden', !u.esAdmin);
@@ -629,7 +634,6 @@ function abrirModuloPrincipal(mod) {
   ['PLANILLA', 'VIVO', 'CARGA', 'PERMISOS', 'CONFIG'].forEach(function(m) {
     document.getElementById('mod' + m).classList.toggle('active', m === mod);
   });
-  document.getElementById('navPlanilla').classList.toggle('active', mod === 'PLANILLA');
   document.getElementById('navVivo').classList.toggle('active', mod === 'VIVO');
   document.getElementById('navCarga').classList.toggle('active', mod === 'CARGA');
   document.getElementById('navPermisos').classList.toggle('active', mod === 'PERMISOS');
