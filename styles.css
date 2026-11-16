@@ -345,3 +345,13 @@ textarea.motivo-input:focus { background: #fff; border-color: var(--primary); }
   table.sac-grid td.editable-cell.mandatory-alert { background-color: #fee2e2 !important; border-color: #fca5a5; }
   select.chip-select, textarea.motivo-input { min-width: 100%; width: 100%; font-size: 13.5px; }
 }
+
+@keyframes spinClock {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.clock-spinner {
+  font-size: 42px;
+  display: inline-block;
+  animation: spinClock 2.5s linear infinite;
+}
