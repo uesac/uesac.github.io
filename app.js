@@ -1,3 +1,9 @@
+/**
+ * ============================================================================
+ * LÓGICA FRONTEND — UESAC.GITHUB.IO (app.js) CON ORDENAMIENTO LOCAL Y DISEÑO SAAS
+ * ============================================================================
+ */
+
 var API_URL = 'https://script.google.com/macros/s/AKfycbyLFxbzBKqP2BRIXoywWpFgxdDXImNetYSVerQPYFDgJ91ChUYisEm3BAMdgKDoRMnd/exec';
 var SESSION_TOKEN_KEY = 'sac_session_token_v2';
 var SESSION_CACHE_KEY = 'sac_session_data_v2';
@@ -11,6 +17,8 @@ var MODO_VISTA_ADMIN_GESTOR = 'MIS_ASIGNADOS';
 var CORREO_EDITANDO_PERM = null;
 var CHARTS_VIVO = {};
 var INTERVALO_RADAR_ID = null;
+
+// Estado de ordenamiento local por columna y dirección
 var ORDEN_ACTIVO = { columna: null, direccion: 'asc' };
 
 /* ============================================================================
@@ -65,7 +73,7 @@ function verificarEstadoConexionInicial() {
     if (inpMail) inpMail.disabled = false;
     if (inpPass) inpPass.disabled = false;
     if (btnLogin) btnLogin.disabled = false;
-    if (ind) ind.textContent = '🟢 Conectado (' + res.fecha + ')';
+    if (ind) ind.textContent = 'Sistema en línea • ' + res.fecha;
   }, function(errTxt) {
     if (ind) ind.textContent = '⚠️ Reintentando conexión...';
     setTimeout(verificarEstadoConexionInicial, 3000);
@@ -512,7 +520,6 @@ function renderizarGrillaReclamos() {
 
   var opciones = esPtes ? STATE.opcionesPendientes : STATE.opcionesReiterados;
 
-  // Definición de columnas con su propiedad interna para ordenamiento y título en Minúscula (excepto inicial)
   var colsDef = esPtes ? [
     { prop: 'id', label: 'Contacto nro' },
     { prop: 'fechaTxt', label: 'Fecha y hora' },
