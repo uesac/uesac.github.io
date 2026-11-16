@@ -13,7 +13,7 @@ var CHARTS_VIVO = {};
 var INTERVALO_RADAR_ID = null;
 
 /* ============================================================================
- * 1. ARRANQUE, PING DE CONEXIÓN, RADAR EN VIVO Y CONTROL DE ACCESO
+ * 1. ARRANQUE, PING DE CONEXIÓN, RELOJ DE CARGA Y CONTROL DE ACCESO
  * ============================================================================ */
 
 window.addEventListener('DOMContentLoaded', function() {
@@ -53,11 +53,21 @@ window.addEventListener('DOMContentLoaded', function() {
 });
 
 function verificarEstadoConexionInicial() {
+  var overlayCarga = document.getElementById('servidorCargandoOverlay');
+  var inpMail = document.getElementById('inpMailLogin');
+  var inpPass = document.getElementById('inpPassLogin');
+  var btnLogin = document.getElementById('btnVerificarLogin');
   var ind = document.getElementById('indicadorCargaInicial');
+
   llamarAPI('PING', {}, function(res) {
+    if (overlayCarga) overlayCarga.style.display = 'none';
+    if (inpMail) inpMail.disabled = false;
+    if (inpPass) inpPass.disabled = false;
+    if (btnLogin) btnLogin.disabled = false;
     if (ind) ind.textContent = '🟢 Conectado (' + res.fecha + ')';
   }, function(errTxt) {
-    if (ind) ind.textContent = '⚠️ Sin conexión (' + errTxt + ')';
+    if (ind) ind.textContent = '⚠️ Reintentando conexión...';
+    setTimeout(verificarEstadoConexionInicial, 3000);
   });
 }
 
@@ -93,11 +103,9 @@ function llamarAPI(accion, payload, onSuccess, onError) {
 function iniciarRadarTiempoReal() {
   if (INTERVALO_RADAR_ID) clearInterval(INTERVALO_RADAR_ID);
 
-  // Consulta ligera cada 12 segundos cuando la pestaña está activa
   INTERVALO_RADAR_ID = setInterval(function() {
     if (!TOKEN_ACTUAL || !STATE || document.visibilityState !== 'visible') return;
 
-    // No interrumpir si el usuario está escribiendo dentro de un motivo o seleccionando un estado
     var elActivo = document.activeElement;
     var estaEditando = elActivo && (
       elActivo.classList.contains('motivo-input') ||
@@ -166,7 +174,13 @@ function validarCorreoAcceso() {
     sessionStorage.setItem(SESSION_TOKEN_KEY, TOKEN_ACTUAL);
     try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(STATE)); } catch (e) {}
 
-    mostrarBienvenidaSegunRango(USUARIO_SESION);
+    MODO_VISTA_ADMIN_GESTOR = (USUARIO_SESION.esAdmin && !USUARIO_SESION.tieneAsignacionesGestor)
+      ? 'TODA_LA_PLANILLA'
+      : 'MIS_ASIGNADOS';
+
+    var tienePtes = (USUARIO_SESION.SERVICIOS_PUBLICOS.Pendientes.length + USUARIO_SESION.OBRAS_PUBLICAS.Pendientes.length) > 0 ||
+                    USUARIO_SESION.esAdmin || USUARIO_SESION.esModeradorSP || USUARIO_SESION.esModeradorOP;
+    abrirEntornoTrabajo(tienePtes ? 'Pendientes' : 'Reiterados');
   }, function(errTxt) {
     btn.disabled = false;
     caja.className = 'msg err';
@@ -214,43 +228,6 @@ function confirmarCambioPasswordObligatorio() {
   });
 }
 
-function mostrarBienvenidaSegunRango(perfil) {
-  var caja = document.getElementById('cajaResultadoLogin');
-  document.getElementById('bloqueFormularioLogin').style.display = 'none';
-  var saludo = obtenerSaludoHorario();
-
-  if (perfil.esAdmin && !perfil.tieneAsignacionesGestor) {
-    MODO_VISTA_ADMIN_GESTOR = 'TODA_LA_PLANILLA';
-    caja.className = 'msg ok';
-    caja.innerHTML = '<div class="welcome-title">' + saludo + '</div>' +
-                     '<div class="counter-lbl">👑 Acceso de Administrador verificado. Abriendo sistema...</div>';
-    setTimeout(function() { abrirEntornoTrabajo('Pendientes'); }, 750);
-    return;
-  }
-
-  var html = '<div class="welcome-title">' + saludo + '</div>';
-  var tienePtes = (perfil.SERVICIOS_PUBLICOS.Pendientes.length + perfil.OBRAS_PUBLICAS.Pendientes.length) > 0 || perfil.esModeradorSP || perfil.esModeradorOP;
-  var tieneReit = (perfil.SERVICIOS_PUBLICOS.Reiterados.length + perfil.OBRAS_PUBLICAS.Reiterados.length) > 0 || perfil.esModeradorSP || perfil.esModeradorOP;
-
-  if (tienePtes) {
-    html += '<button type="button" class="link-btn" onclick="MODO_VISTA_ADMIN_GESTOR=\'MIS_ASIGNADOS\'; abrirEntornoTrabajo(\'Pendientes\')">🚀 Ver mis reclamos pendientes</button>';
-  }
-  if (tieneReit) {
-    html += '<button type="button" class="link-btn" style="background:#b45309;" onclick="MODO_VISTA_ADMIN_GESTOR=\'MIS_ASIGNADOS\'; abrirEntornoTrabajo(\'Reiterados\')">🚀 Ver mis reclamos reiterados</button>';
-  }
-
-  if (perfil.tieneAsignacionesGestor) {
-    html += '<div class="counter-lbl">📌 Usted tiene ' + perfil.totalAsignadas + ' dep. asignadas' + (perfil.esAdmin ? ' (Rol: Administrador y Gestor)' : '') + '</div>';
-  }
-
-  if (perfil.esAdmin) {
-    html += '<button type="button" class="admin-btn" onclick="MODO_VISTA_ADMIN_GESTOR=\'TODA_LA_PLANILLA\'; abrirEntornoTrabajo(\'Pendientes\')">👑 Ver toda la planilla completa (Modo Administrador)</button>';
-  }
-
-  caja.className = 'msg ok';
-  caja.innerHTML = html;
-}
-
 function sincronizarConServidor(mostrarAviso) {
   if (!TOKEN_ACTUAL) return;
   if (mostrarAviso) actualizarPillSync('⏳ Sincronizando...');
@@ -290,11 +267,21 @@ function abrirEntornoTrabajo(tipoInicial) {
     badge.textContent = '👤 Gestor: ' + u.email;
   }
 
+  var bienvenidaEl = document.getElementById('badgeBienvenidaTop');
+  if (bienvenidaEl) {
+    var txtDep = u.tieneAsignacionesGestor ? (' · 📌 Usted tiene ' + u.totalAsignadas + ' dep.') : '';
+    bienvenidaEl.textContent = obtenerSaludoHorario() + txtDep;
+  }
+
+  var tieneOtrosModulos = Boolean(u.esAdmin || u.verPanelEnVivo);
+  document.getElementById('navPlanilla').classList.toggle('hidden', !tieneOtrosModulos);
   document.getElementById('navVivo').classList.toggle('hidden', !u.verPanelEnVivo);
   document.getElementById('navCarga').classList.toggle('hidden', !u.esAdmin);
   document.getElementById('navPermisos').classList.toggle('hidden', !u.esAdmin);
   document.getElementById('navConfig').classList.toggle('hidden', !u.esAdmin);
-  document.getElementById('navBackup').classList.toggle('hidden', !u.esAdmin);
+
+  var btnCsv = document.getElementById('btnDescargarCSV');
+  if (btnCsv) btnCsv.classList.toggle('hidden', !u.esAdmin);
 
   var btnSw = document.getElementById('btnSwitchAdminGestor');
   if (u.esAdmin && u.tieneAsignacionesGestor) {
@@ -1125,7 +1112,7 @@ function mostrarMsgPerm(ok, txt) {
 }
 
 /* ============================================================================
- * 5. CARGA DE CRUDOS, CONFIGURACIÓN Y DESCARGAS LOCALES (SOLO ADMINS)
+ * 5. CARGA DE CRUDOS Y CONFIGURACIÓN (SOLO ADMINS)
  * ============================================================================ */
 
 function listarArchivosCrudosDrive() {
@@ -1191,57 +1178,9 @@ function procesarCargaCrudo() {
   }
 }
 
-function procesarVaciadoHoja() {
-  var caja = document.getElementById('cajaEstadoCarga');
-  caja.className = 'msg ok';
-  caja.innerHTML = '⏳ Resguardando backup y vaciando hoja...';
-  llamarAPI('VACIAR_HOJA', {
-    secretaria: document.getElementById('limpiarSec').value,
-    tipoReclamo: document.getElementById('limpiarTipo').value,
-    hacerBackupPrevio: document.getElementById('chkBackupLimpiar').checked
-  }, function(res) {
-    STATE = res.paqueteActualizado;
-    try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(STATE)); } catch (ex) {}
-    caja.innerHTML = '✅ ' + res.resumen;
-    actualizarContadoresYSelectores();
-    renderizarGrillaReclamos();
-  });
-}
-
-function importarPlanillasExistentes() {
-  var caja = document.getElementById('cajaEstadoCarga');
-  caja.className = 'msg ok';
-  caja.innerHTML = '⏳ Importando reclamos y permisos desde tus planillas de Drive...';
-  llamarAPI('IMPORTAR_EXISTENTES', {}, function(res) {
-    STATE = res.paqueteActualizado;
-    try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(STATE)); } catch (ex) {}
-    caja.innerHTML = '✅ ' + res.resumen;
-    actualizarContadoresYSelectores();
-    renderizarGrillaReclamos();
-  });
-}
-
-function ejecutarBackupGeneral() {
-  actualizarPillSync('⏳ Creando Backup en Drive...');
-  llamarAPI('GENERAR_BACKUP', {}, function(res) {
-    actualizarPillSync('✅ Backup en Drive: ' + res.nombreBackup);
-    alert('✅ Backup creado exitosamente en tu carpeta BackUp_Panel de Google Drive:\n' + res.nombreBackup);
-  });
-}
-
 function descargarVistaActualCSV() {
   var filas = STATE.reclamos[SEC_ACTIVA][TIPO_ACTIVO] || [];
   exportarArregloACSV(filas, 'SAC_' + SEC_ACTIVA + '_' + TIPO_ACTIVO + '.csv');
-}
-
-function descargarBackupCompletoEnPC() {
-  var todas = [].concat(
-    STATE.reclamos.SERVICIOS_PUBLICOS.Pendientes || [],
-    STATE.reclamos.SERVICIOS_PUBLICOS.Reiterados || [],
-    STATE.reclamos.OBRAS_PUBLICAS.Pendientes || [],
-    STATE.reclamos.OBRAS_PUBLICAS.Reiterados || []
-  );
-  exportarArregloACSV(todas, 'Backup_Consolidado_SAC_' + new Date().toISOString().slice(0, 10) + '.csv');
 }
 
 function exportarArregloACSV(arr, nombreArchivo) {
@@ -1271,7 +1210,7 @@ function cargarFormularioParametrosSistema() {
   document.getElementById('cfgCarpetaBackup').value = p.carpetaBackup || 'BackUp_Panel';
 }
 
-function guardarParametrosSistemaDesdeWeb() {
+function guardarParametrosSistemaWeb() {
   var nuevos = {
     opcionesPendientes: document.getElementById('cfgOpcionesPtes').value.split('\n').map(x => x.trim()).filter(Boolean),
     opcionesReiterados: document.getElementById('cfgOpcionesReit').value.split('\n').map(x => x.trim()).filter(Boolean),
