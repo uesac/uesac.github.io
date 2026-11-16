@@ -10,7 +10,7 @@
 </head>
 <body>
 
-  <!-- 1. PANTALLA DE CONTROL DE ACCESO -->
+  <!-- 1. PANTALLA DE CONTROL DE ACCESO CON VENTANA DE CARGA DIFUMINADA -->
   <div id="loginOverlay">
     <div id="servidorCargandoOverlay" class="overlay-backdrop">
       <div class="modal-difuminado">
@@ -85,18 +85,15 @@
     <section class="module-pane active" id="modPLANILLA">
       <div class="sheet-toolbar">
         <div class="switch-group">
-          <button type="button" class="sw-btn hidden" id="btnSwitchAdminGestor" onclick="alternarModoAdminGestor()"></button>
-
-          <select id="selFiltroDepTabla" onchange="renderizarGrillaReclamos()">
-            <option value="TODAS">🔍 Todas las dependencias</option>
-          </select>
-          <select id="selFiltroEstadoTabla" onchange="renderizarGrillaReclamos()">
-            <option value="TODOS">📋 Todos los reclamos</option>
-            <option value="INCOMPLETOS">⚠️ Solo pendientes de completar</option>
-            <option value="COMPLETOS">✅ Solo completados</option>
-          </select>
-          <input type="text" id="inpBuscarGrilla" oninput="renderizarGrillaReclamos()" placeholder="🔎 Buscar ID, asunto, barrio, gestor...">
-          <button type="button" class="sw-btn hidden" id="btnDescargarCSV" onclick="descargarVistaActualCSV()" title="Descargar tabla filtrada a mi PC (.csv)">📥 Descargar CSV</button>
+          <button type="button" class="sw-btn active-sec" id="btnSecSP" onclick="cambiarSecretariaActiva('SERVICIOS_PUBLICOS')">🏢 Servicios Públicos</button>
+          <button type="button" class="sw-btn" id="btnSecOP" onclick="cambiarSecretariaActiva('OBRAS_PUBLICAS')">🏗️ Obras Públicas</button>
+          <span class="divider">|</span>
+          <button type="button" class="sw-btn active-ptes" id="btnTabPtes" onclick="cambiarTipoReclamoActivo('Pendientes')">
+            📋 Ver mis reclamos pendientes (<span id="cntPtes">0</span>)
+          </button>
+          <button type="button" class="sw-btn" id="btnTabReit" onclick="cambiarTipoReclamoActivo('Reiterados')">
+            🔁 Ver mis reclamos reiterados (<span id="cntReit">0</span>)
+          </button>
         </div>
 
         <div class="switch-group">
@@ -111,7 +108,7 @@
             <option value="COMPLETOS">✅ Solo completados</option>
           </select>
           <input type="text" id="inpBuscarGrilla" oninput="renderizarGrillaReclamos()" placeholder="🔎 Buscar ID, asunto, barrio, gestor...">
-          <button type="button" class="sw-btn" onclick="descargarVistaActualCSV()" title="Descargar tabla filtrada a mi PC (.csv)">📥 Descargar CSV</button>
+          <button type="button" class="sw-btn hidden" id="btnDescargarCSV" onclick="descargarVistaActualCSV()" title="Descargar tabla filtrada a mi PC (.csv)">📥 Descargar CSV</button>
         </div>
       </div>
 
@@ -462,7 +459,7 @@
             </div>
           </div>
 
-          <button type="button" class="btn-primary" style="margin-top:14px;" onclick="guardarParametrosSistemaDesdeWeb()">
+          <button type="button" class="btn-primary" style="margin-top:14px;" onclick="guardarParametrosSistemaWeb()">
             💾 Guardar Parámetros del Sistema
           </button>
         </div>
