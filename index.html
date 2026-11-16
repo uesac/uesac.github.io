@@ -14,22 +14,37 @@
   <div id="loginOverlay">
     <div class="login-top-bar">
       <span class="login-header">🔐 Control de acceso</span>
-      <button type="button" class="btn-api-cfg" onclick="configurarUrlApiManual()" title="Configurar conexión API">⚙️</button>
     </div>
 
     <div class="login-card">
       <h2>🛡️ Identificación</h2>
 
       <div id="bloqueFormularioLogin">
-        <p>Ingresá tu correo electrónico autorizado para acceder exclusivamente a los reclamos según tu dependencia/asunto:</p>
-        <input type="email" id="inpMailLogin" class="login-input" placeholder="tu.correo@gmail.com">
+        <input type="email" id="inpMailLogin" class="login-input" placeholder="tu.correo@gmail.com" autocomplete="username">
+        <input type="password" id="inpPassLogin" class="login-input" placeholder="Contraseña" autocomplete="current-password">
         <button type="button" class="btn-primary" id="btnVerificarLogin" onclick="validarCorreoAcceso()">
-          🔑 Verificar correo y filtrar mis reclamos
+          🔑 Verificar
         </button>
-        <div id="indicadorCargaInicial" class="sync-hint">⚡ Conectando con base de datos SAC...</div>
+        <div id="indicadorCargaInicial" class="sync-hint">⏳ Conectando...</div>
       </div>
 
       <div id="cajaResultadoLogin" class="msg"></div>
+    </div>
+  </div>
+
+  <!-- 1.B MODAL OBLIGATORIO E IMPOSIBLE DE CERRAR PARA CAMBIO DE CONTRASEÑA INICIAL -->
+  <div id="modalCambioPassword" class="hidden">
+    <div class="login-card">
+      <h2>🔐 Cambio obligatorio de contraseña</h2>
+      <p style="color:#475569; font-size:13.5px; margin-bottom:16px;">
+        Por seguridad, en tu primer ingreso (o tras un restablecimiento) debés elegir una contraseña personal nueva de <b>al menos 8 caracteres</b> y distinta de <code>uesac123</code>.
+      </p>
+      <input type="password" id="inpNuevaPass1" class="login-input" placeholder="Nueva contraseña (mínimo 8 caracteres)" autocomplete="new-password">
+      <input type="password" id="inpNuevaPass2" class="login-input" placeholder="Repetir nueva contraseña" autocomplete="new-password">
+      <button type="button" class="btn-primary" id="btnGuardarNuevaPass" onclick="confirmarCambioPasswordObligatorio()">
+        💾 Guardar nueva contraseña
+      </button>
+      <div id="msgCambioPassword" class="msg"></div>
     </div>
   </div>
 
@@ -39,7 +54,7 @@
       <div class="brand">
         <span>🏛️ SISTEMA MUNICIPAL DE ATENCIÓN CIUDADANA (SAC)</span>
         <span id="badgeRolActivo" class="role-badge"></span>
-        <span id="badgeEstadoSync" class="sync-pill">🟢 En línea</span>
+        <span id="badgeEstadoSync" class="sync-pill">🟢 Conectado</span>
       </div>
 
       <nav class="nav-modules">
@@ -51,7 +66,7 @@
         <button type="button" class="mod-btn hidden" id="navBackup" onclick="ejecutarBackupGeneral()">💾 Generar backup</button>
         <button type="button" class="mod-btn btn-f11" onclick="alternarPantallaCompleta()">⛶ F11</button>
         <button type="button" class="mod-btn" onclick="sincronizarConServidor(true)" title="Sincronizar ahora">🔄</button>
-        <button type="button" class="mod-btn btn-logout" onclick="cerrarSesionSAC()" title="Cambiar de usuario">🚪 Salir</button>
+        <button type="button" class="mod-btn btn-logout" onclick="cerrarSesionSAC()" title="Cerrar sesión y borrar datos en caché">🚪 Salir</button>
       </nav>
     </header>
 
@@ -71,7 +86,6 @@
         </div>
 
         <div class="switch-group">
-          <!-- Conmutador exclusivo para Administradores que también tienen reclamos como Gestor -->
           <button type="button" class="sw-btn hidden" id="btnSwitchAdminGestor" onclick="alternarModoAdminGestor()"></button>
 
           <select id="selFiltroDepTabla" onchange="renderizarGrillaReclamos()">
@@ -92,7 +106,7 @@
       </div>
     </section>
 
-    <!-- MÓDULO 2: PANEL EN VIVO (HABILITADO CON EL TILDE DE "PANEL EN VIVO") -->
+    <!-- MÓDULO 2: PANEL EN VIVO -->
     <section class="module-pane" id="modVIVO">
       <div class="filterbar-vivo">
         <div class="f-group">
@@ -293,12 +307,12 @@
       </div>
     </section>
 
-    <!-- MÓDULO 4: ADMINISTRADOR DE PERMISOS + AUDITORÍA DE REPETIDOS Y SIN ASIGNAR -->
+    <!-- MÓDULO 4: ADMINISTRADOR DE PERMISOS + RESTABLECER CONTRASEÑAS + AUDITORÍA -->
     <section class="module-pane" id="modPERMISOS">
       <div class="perm-wrap">
         <div class="mode-tabs">
           <button type="button" class="mode-tab active" id="tabModoAsignar" onclick="cambiarModoPermisos('ASIGNAR')">
-            🔐 1. Asignación de Correos, Rangos, Dependencias y Asuntos
+            🔐 1. Asignación de Correos, Rangos, Contraseñas y Dependencias
           </button>
           <button type="button" class="mode-tab" id="tabModoAuditoria" onclick="cambiarModoPermisos('AUDITORIA')">
             📊 2. Auditoría: Repetidos <span class="pill-cnt pill-warn" id="badgeTotalRepetidos">0</span> y Sin Asignar <span class="pill-cnt pill-danger" id="badgeTotalSinAsignar">0</span>
@@ -342,10 +356,9 @@
               <span id="lblCorreoSeleccionadoPerm">🎯 Seleccioná o agregá un correo a la izquierda para tildar sus dependencias y asuntos</span>
             </div>
 
-            <!-- BARRA DE TILDES ESPECIALES: ADMINISTRADOR, PANEL EN VIVO Y MODERADOR (PUNTO 6) -->
             <div class="admin-banner" id="bannerRolesEspeciales" style="display:none;">
               <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
-                <label title="Permite editar cualquier reclamo de la Secretaría (y si tildás abajo, también puede filtrar sus propios reclamos)">
+                <label title="Permite editar cualquier reclamo de la Secretaría">
                   <input type="checkbox" id="chkEsAdminPerm" onchange="alCambiarTildeEspecial('esAdmin', this.checked)">
                   <span>👑 Administrador</span>
                 </label>
@@ -353,14 +366,19 @@
                   <input type="checkbox" id="chkVerPanelVivoPerm" onchange="alCambiarTildeEspecial('verPanelEnVivo', this.checked)">
                   <span>📊 Habilitar "Panel en vivo"</span>
                 </label>
-                <label title="Permite ver y editar todos los reclamos de esta Secretaría sin tener acceso a cargar crudos ni cambiar permisos">
+                <label title="Permite ver y editar todos los reclamos de esta Secretaría">
                   <input type="checkbox" id="chkEsModeradorPerm" onchange="alCambiarTildeEspecial('esModerador', this.checked)">
                   <span>🛡️ Moderador de Secretaría</span>
                 </label>
               </div>
-              <button type="button" class="btn-both-sec" onclick="aplicarRolEnAmbasSecretarias()">
-                🌐 Aplicar en AMBAS Secretarías
-              </button>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button type="button" class="btn-both-sec" style="background:#dc2626;" onclick="restablecerPasswordUsuarioActual()">
+                  🔄 Restablecer contraseña
+                </button>
+                <button type="button" class="btn-both-sec" onclick="aplicarRolEnAmbasSecretarias()">
+                  🌐 Aplicar en AMBAS Secretarías
+                </button>
+              </div>
             </div>
 
             <div class="dep-cols">
@@ -437,7 +455,7 @@
       </div>
     </section>
 
-    <!-- MÓDULO 5: CONFIGURACIÓN SIN TOCAR CÓDIGO INTERNO (PUNTO 7) -->
+    <!-- MÓDULO 5: CONFIGURACIÓN SIN TOCAR CÓDIGO INTERNO -->
     <section class="module-pane" id="modCONFIG">
       <div class="content-scroll">
         <div class="card-panel" style="margin-bottom:14px;">
