@@ -11,8 +11,9 @@
 <body>
 
   <!-- 1. PANTALLA DE CONTROL DE ACCESO CON VENTANA DE CARGA DIFUMINADA -->
-  <div id="loginOverlay">
-    <div id="servidorCargandoOverlay" class="overlay-backdrop">
+ <div id="loginOverlay">
+    <!-- Ventana de carga superpuesta con reloj -->
+    <div id="servidorCargandoOverlay" class="overlay-backdrop" style="display:none;">
       <div class="modal-difuminado">
         <div class="reloj-icono">
           <div class="aguja-minutos"></div>
@@ -24,21 +25,47 @@
       </div>
     </div>
 
-    <div class="login-top-bar">
-      <span class="login-header">🔐 Control de acceso</span>
-    </div>
+    <main class="login-card" style="background: #ffffff; padding: 40px 36px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-width: 420px; width: 100%;">
+      <div class="brand-header" style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 24px;">
+        <svg style="width: 38px; height: 38px; color: #059669;" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2L2 7v2h20V7L12 2zm-7 9v7H3v2h18v-2h-2v-7h-3v7h-2v-7h-4v7H8v-7H5z"/>
+        </svg>
+        <span style="font-size: 1.35rem; font-weight: 700; color: #111827;">Sistema SAC</span>
+      </div>
 
-    <div class="login-card">
-      <h2>🛡️ Identificación</h2>
+      <div class="title-group" style="text-align: center; margin-bottom: 28px;">
+        <h1 style="font-size: 1.5rem; font-weight: 700; color: #111827; margin-bottom: 6px;">Control de acceso</h1>
+        <p style="font-size: 0.9rem; color: #6b7280;">Portal de Gestión y Administración</p>
+      </div>
 
       <div id="bloqueFormularioLogin">
-        <input type="email" id="inpMailLogin" class="login-input" placeholder="tu.correo@gmail.com" autocomplete="username" disabled>
-        <input type="password" id="inpPassLogin" class="login-input" placeholder="Contraseña" autocomplete="current-password" disabled>
-        <button type="button" class="btn-primary" id="btnVerificarLogin" onclick="validarCorreoAcceso()" disabled>
-          🔑 Verificar
-        </button>
-        <div id="indicadorCargaInicial" class="sync-hint">🟢 Conectado</div>
+        <div class="form-group" style="margin-bottom: 18px; text-align: left;">
+          <label for="inpMailLogin" style="display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 6px;">Correo electrónico</label>
+          <div class="input-wrapper" style="position: relative; display: flex; align-items: center;">
+            <input type="email" id="inpMailLogin" class="login-input" placeholder="usuario@institucion.gob.ar" autocomplete="username" disabled style="width: 100%; padding: 11px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.92rem; background: #fafafa;">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 18px; text-align: left;">
+          <label for="inpPassLogin" style="display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 6px;">Contraseña</label>
+          <div class="input-wrapper" style="position: relative; display: flex; align-items: center;">
+            <input type="password" id="inpPassLogin" class="login-input" placeholder="••••••••••" autocomplete="current-password" disabled style="width: 100%; padding: 11px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.92rem; background: #fafafa;">
+          </div>
+        </div>
+
+        <button type="button" class="btn-submit" id="btnVerificarLogin" onclick="validarCorreoAcceso()" disabled style="width: 100%; padding: 12px; background-color: #059669; color: #ffffff; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer;">Iniciar sesión</button>
       </div>
+
+      <div id="cajaResultadoLogin" class="msg" style="margin-top: 15px;"></div>
+
+      <div class="status-footer" style="margin-top: 24px; display: flex; justify-content: center;">
+        <div class="status-badge" style="display: inline-flex; align-items: center; gap: 8px; background-color: #f3f4f6; padding: 6px 14px; border-radius: 999px; font-size: 0.78rem; color: #6b7280; font-weight: 500;">
+          <span style="width: 8px; height: 8px; background-color: #10b981; border-radius: 50%;"></span>
+          <span id="indicadorCargaInicial">Sistema en línea</span>
+        </div>
+      </div>
+    </main>
+  </div>
 
       <div id="cajaResultadoLogin" class="msg"></div>
     </div>
