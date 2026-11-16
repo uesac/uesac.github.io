@@ -1,9 +1,3 @@
-/**
- * ============================================================================
- * LÓGICA FRONTEND DE ALTA EFICIENCIA, SEGURIDAD Y RADAR EN VIVO — UESAC.GITHUB.IO
- * ============================================================================
- */
-
 var API_URL = 'https://script.google.com/macros/s/AKfycbyLFxbzBKqP2BRIXoywWpFgxdDXImNetYSVerQPYFDgJ91ChUYisEm3BAMdgKDoRMnd/exec';
 var SESSION_TOKEN_KEY = 'sac_session_token_v2';
 var SESSION_CACHE_KEY = 'sac_session_data_v2';
@@ -17,6 +11,7 @@ var MODO_VISTA_ADMIN_GESTOR = 'MIS_ASIGNADOS';
 var CORREO_EDITANDO_PERM = null;
 var CHARTS_VIVO = {};
 var INTERVALO_RADAR_ID = null;
+var ORDEN_ACTIVO = { columna: null, direccion: 'asc' };
 
 /* ============================================================================
  * 1. ARRANQUE, PING DE CONEXIÓN, RELOJ DE CARGA Y CONTROL DE ACCESO
@@ -370,7 +365,7 @@ function cerrarSesionSAC() {
 }
 
 /* ============================================================================
- * 2. MOTOR DE GRILLA INTERACTIVA Y GUARDADO EN 0 MS
+ * 2. MOTOR DE GRILLA INTERACTIVA, ORDENAMIENTO LOCAL Y GUARDADO EN 0 MS
  * ============================================================================ */
 
 function puedeUsuarioVerFila(r, claveSec, tipoReclamo) {
@@ -458,6 +453,21 @@ function claseColorChip(valor) {
   return 'chip-gris';
 }
 
+function ordenarTablaLocal(columnaProp) {
+  if (ORDEN_ACTIVO.columna === columnaProp) {
+    ORDEN_ACTIVO.direccion = (ORDEN_ACTIVO.direccion === 'asc') ? 'desc' : 'asc';
+  } else {
+    ORDEN_ACTIVO.columna = columnaProp;
+    ORDEN_ACTIVO.direccion = 'asc';
+  }
+  renderizarGrillaReclamos();
+}
+
+function capitalizarEncabezado(texto) {
+  if (!texto) return '';
+  return texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase();
+}
+
 function renderizarGrillaReclamos() {
   var tbl = document.getElementById('tablaReclamosDOM');
   var esPtes = (TIPO_ACTIVO === 'Pendientes');
@@ -486,28 +496,72 @@ function renderizarGrillaReclamos() {
     return true;
   });
 
-  var opciones = esPtes ? STATE.opcionesPendientes : STATE.opcionesReiterados;
-  var html = ['<thead><tr>'];
-
-  if (esPtes) {
-    html.push(
-      '<th>Contacto Nro</th><th>Fecha y Hora</th><th>Contacto Tipo</th><th>Vía de Captación</th><th style="min-width:147px;">Boca Receptora</th>',
-      '<th style="min-width:249px;">Asunto</th><th style="min-width:300px;">Descripción</th><th>Barrio</th><th>Calle</th><th>Altura</th>',
-      '<th>Visualizado</th><th>Dts. Cierre-Fecha</th><th style="min-width:208px;">Dts. Área-Dependencia principal</th>',
-      '<th>Dts. Gestor-Nombre</th><th style="min-width:215px;">Dts. Gestor-Dependencia</th>',
-      '<th style="min-width:225px;">Estado del pendiente</th><th style="min-width:260px;">Motivos del pendiente</th><th>Fecha últ. resp.</th>'
-    );
-  } else {
-    html.push(
-      '<th>Reit.</th><th>ID Contacto</th><th>Fecha</th><th style="min-width:249px;">Problema</th><th>Barrio</th>',
-      '<th>Ciudadano</th><th>DNI</th><th>Secretaría</th><th style="min-width:208px;">Dependencia</th><th>Gestor</th>',
-      '<th style="min-width:230px;">Estado de reincidencia</th><th style="min-width:260px;">Motivos de reincidencia</th><th>Fecha últ. resp.</th>'
-    );
+  // Ordenamiento local sin llamadas al servidor
+  if (ORDEN_ACTIVO.columna) {
+    var col = ORDEN_ACTIVO.columna;
+    var dir = ORDEN_ACTIVO.direccion === 'asc' ? 1 : -1;
+    filas.sort(function(a, b) {
+      var valA = a[col] != null ? a[col] : '';
+      var valB = b[col] != null ? b[col] : '';
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return (valA - valB) * dir;
+      }
+      return String(valA).localeCompare(String(valB), 'es', { numeric: true }) * dir;
+    });
   }
+
+  var opciones = esPtes ? STATE.opcionesPendientes : STATE.opcionesReiterados;
+
+  // Definición de columnas con su propiedad interna para ordenamiento y título en Minúscula (excepto inicial)
+  var colsDef = esPtes ? [
+    { prop: 'id', label: 'Contacto nro' },
+    { prop: 'fechaTxt', label: 'Fecha y hora' },
+    { prop: 'contactoTipo', label: 'Contacto tipo' },
+    { prop: 'via', label: 'Vía de captación' },
+    { prop: 'boca', label: 'Boca receptora' },
+    { prop: 'asunto', label: 'Asunto' },
+    { prop: 'desc', label: 'Descripción' },
+    { prop: 'barrio', label: 'Barrio' },
+    { prop: 'calle', label: 'Calle' },
+    { prop: 'altura', label: 'Altura' },
+    { prop: 'visTxt', label: 'Visualizado' },
+    { prop: 'cierreTxt', label: 'Cierre-fecha' },
+    { prop: 'depPrincipal', label: 'Área-dependencia principal' },
+    { prop: 'gestor', label: 'Gestor-nombre' },
+    { prop: 'gestorDep', label: 'Gestor-dependencia' },
+    { prop: 'estado', label: 'Estado del pendiente' },
+    { prop: 'motivo', label: 'Motivos del pendiente' },
+    { prop: 'ultResp', label: 'Fecha últ. resp.' }
+  ] : [
+    { prop: 'reit', label: 'Reit.' },
+    { prop: 'id', label: 'ID contacto' },
+    { prop: 'fechaTxt', label: 'Fecha' },
+    { prop: 'problema', label: 'Problema' },
+    { prop: 'barrio', label: 'Barrio' },
+    { prop: 'ciudadano', label: 'Ciudadano' },
+    { prop: 'dni', label: 'DNI' },
+    { prop: 'secretariaSAC', label: 'Secretaría' },
+    { prop: 'dependencia', label: 'Dependencia' },
+    { prop: 'gestor', label: 'Gestor' },
+    { prop: 'estado', label: 'Estado de reincidencia' },
+    { prop: 'motivo', label: 'Motivos de reincidencia' },
+    { prop: 'ultResp', label: 'Fecha últ. resp.' }
+  ];
+
+  var html = ['<thead><tr>'];
+  colsDef.forEach(function(c) {
+    var flecha = '';
+    if (ORDEN_ACTIVO.columna === c.prop) {
+      flecha = ORDEN_ACTIVO.direccion === 'asc' ? ' ▲' : ' ▼';
+    } else {
+      flecha = ' <span class="sort-icon">↕</span>';
+    }
+    html.push('<th onclick="ordenarTablaLocal(\'' + c.prop + '\')">' + capitalizarEncabezado(c.label) + flecha + '</th>');
+  });
   html.push('</tr></thead><tbody>');
 
   if (filas.length === 0) {
-    html.push('<tr><td colspan="18" style="padding:28px; font-weight:700; color:#64748b;">No hay reclamos que coincidan con el filtro seleccionado.</td></tr></tbody>');
+    html.push('<tr><td colspan="' + colsDef.length + '" style="padding:28px; font-weight:700; color:#64748b;">No hay reclamos que coincidan con el filtro seleccionado.</td></tr></tbody>');
     tbl.innerHTML = html.join('');
     return;
   }
@@ -530,31 +584,31 @@ function renderizarGrillaReclamos() {
     if (esPtes) {
       html.push(
         '<tr>',
-        '<td data-label="Contacto Nro"><b>#' + r.id + '</b></td>',
-        '<td data-label="Fecha y Hora">' + r.fechaTxt + '</td>',
-        '<td data-label="Tipo">' + r.contactoTipo + '</td>',
-        '<td data-label="Vía">' + r.via + '</td>',
-        '<td data-label="Boca Receptora">' + r.boca + '</td>',
+        '<td data-label="Contacto nro"><b>#' + r.id + '</b></td>',
+        '<td data-label="Fecha y hora">' + r.fechaTxt + '</td>',
+        '<td data-label="Contacto tipo">' + r.contactoTipo + '</td>',
+        '<td data-label="Vía de captación">' + r.via + '</td>',
+        '<td data-label="Boca receptora">' + r.boca + '</td>',
         '<td data-label="Asunto"><b>' + r.asunto + '</b></td>',
         '<td data-label="Descripción" style="font-size:11.5px;">' + escaparHtml(r.desc) + '</td>',
         '<td data-label="Barrio">' + (r.barrio || 'SIN BARRIO') + '</td>',
         '<td data-label="Calle">' + r.calle + '</td>',
         '<td data-label="Altura">' + r.altura + '</td>',
         '<td data-label="Visualizado">' + r.visTxt + '</td>',
-        '<td data-label="Cierre-Fecha">' + r.cierreTxt + '</td>',
-        '<td data-label="Dep. Principal"><b>' + r.depPrincipal + '</b></td>',
-        '<td data-label="Gestor">' + r.gestor + '</td>',
-        '<td data-label="Gestor-Dep."><b>' + r.gestorDep + '</b></td>',
+        '<td data-label="Cierre-fecha">' + r.cierreTxt + '</td>',
+        '<td data-label="Área-dependencia principal"><b>' + r.depPrincipal + '</b></td>',
+        '<td data-label="Gestor-nombre">' + r.gestor + '</td>',
+        '<td data-label="Gestor-dependencia"><b>' + r.gestorDep + '</b></td>',
         '<td data-label="Estado del pendiente" class="' + clsEst + '" id="tdEst_' + r.id + '">' + selHtml + '</td>',
         '<td data-label="Motivos del pendiente" class="' + clsMot + '" id="tdMot_' + r.id + '">' + motHtml + '</td>',
-        '<td data-label="Fecha últ. resp." id="tdResp_' + r.id + '" style="font-weight:700; color:#1e3a8a;">' + r.ultResp + '</td>',
+        '<td data-label="Fecha últ. resp." id="tdResp_' + r.id + '" style="font-weight:700; color:#059669;">' + r.ultResp + '</td>',
         '</tr>'
       );
     } else {
       html.push(
         '<tr>',
-        '<td data-label="Reiteraciones"><b style="color:#991b1b;">' + r.reit + 'x</b></td>',
-        '<td data-label="ID Contacto"><b>#' + r.id + '</b></td>',
+        '<td data-label="Reit."><b style="color:#991b1b;">' + r.reit + 'x</b></td>',
+        '<td data-label="ID contacto"><b>#' + r.id + '</b></td>',
         '<td data-label="Fecha">' + r.fechaTxt + '</td>',
         '<td data-label="Problema"><b>' + r.problema + '</b></td>',
         '<td data-label="Barrio">' + (r.barrio || 'SIN BARRIO') + '</td>',
@@ -565,7 +619,7 @@ function renderizarGrillaReclamos() {
         '<td data-label="Gestor">' + r.gestor + '</td>',
         '<td data-label="Estado de reincidencia" class="' + clsEst + '" id="tdEst_' + r.id + '">' + selHtml + '</td>',
         '<td data-label="Motivos de reincidencia" class="' + clsMot + '" id="tdMot_' + r.id + '">' + motHtml + '</td>',
-        '<td data-label="Fecha últ. resp." id="tdResp_' + r.id + '" style="font-weight:700; color:#1e3a8a;">' + r.ultResp + '</td>',
+        '<td data-label="Fecha últ. resp." id="tdResp_' + r.id + '" style="font-weight:700; color:#059669;">' + r.ultResp + '</td>',
         '</tr>'
       );
     }
@@ -766,15 +820,15 @@ function recalcularPanelEnVivo() {
   var lAs = ordenarObjeto(mAsuntos, N);
   var lViasOEdades = ordenarObjeto(fClase === 'Pendientes' ? mVias : mEdades, N);
 
-  renderChart('chVivoCausas', 'bar', lCausas.map(x => x.k), lCausas.map(x => x.v), '#2563eb', true);
-  renderChart('chVivoVis', 'doughnut', ['Visualizados', 'No visualizados'], [vis, noVis], ['#10b981', '#e11d48'], false);
-  renderChart('chVivoTipos', 'bar', lTipos.slice(0, 8).map(x => x.k), lTipos.slice(0, 8).map(x => x.v), '#0f766e', false);
-  renderChart('chVivoDeps', 'bar', lDeps.slice(0, 10).map(x => x.k), lDeps.slice(0, 10).map(x => x.v), '#1d4ed8', true);
+  renderChart('chVivoCausas', 'bar', lCausas.map(x => x.k), lCausas.map(x => x.v), '#059669', true);
+  renderChart('chVivoVis', 'doughnut', ['Visualizados', 'No visualizados'], [vis, noVis], ['#059669', '#dc2626'], false);
+  renderChart('chVivoTipos', 'bar', lTipos.slice(0, 8).map(x => x.k), lTipos.slice(0, 8).map(x => x.v), '#047857', false);
+  renderChart('chVivoDeps', 'bar', lDeps.slice(0, 10).map(x => x.k), lDeps.slice(0, 10).map(x => x.v), '#065f46', true);
   renderChart('chVivoGestores', 'bar', lGest.slice(0, 12).map(x => x.k), lGest.slice(0, 12).map(x => x.v), '#d97706', true);
-  renderChart('chVivoBarrios', 'bar', lBar.slice(0, 15).map(x => x.k), lBar.slice(0, 15).map(x => x.v), '#4338ca', true);
-  renderChart('chVivoAsuntos', 'bar', lAs.slice(0, 12).map(x => x.k), lAs.slice(0, 12).map(x => x.v), '#0d9488', true);
-  renderChart('chVivoDias', 'bar', [1,2,3,4,5,6,7].map(d => mDias[d].n), [1,2,3,4,5,6,7].map(d => mDias[d].c), '#0284c7', false);
-  renderChart('chVivoVias', 'bar', lViasOEdades.map(x => x.k), lViasOEdades.map(x => x.v), '#7c3aed', false);
+  renderChart('chVivoBarrios', 'bar', lBar.slice(0, 15).map(x => x.k), lBar.slice(0, 15).map(x => x.v), '#0f766e', true);
+  renderChart('chVivoAsuntos', 'bar', lAs.slice(0, 12).map(x => x.k), lAs.slice(0, 12).map(x => x.v), '#115e59', true);
+  renderChart('chVivoDias', 'bar', [1,2,3,4,5,6,7].map(d => mDias[d].n), [1,2,3,4,5,6,7].map(d => mDias[d].c), '#059669', false);
+  renderChart('chVivoVias', 'bar', lViasOEdades.map(x => x.k), lViasOEdades.map(x => x.v), '#047857', false);
 
   document.getElementById('tblVivoCausas').innerHTML = '<tr><th>Estado</th><th>Cant.</th><th>%</th></tr>' +
     lCausas.map(x => '<tr><td><b>' + x.k + '</b></td><td>' + x.v + '</td><td>' + x.p.toFixed(1) + '%</td></tr>').join('');
