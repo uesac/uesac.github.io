@@ -148,22 +148,28 @@ function validarCorreoAcceso() {
   var btn = document.getElementById('btnVerificarLogin');
 
   if (!mail || mail.indexOf('@') === -1 || !pass) {
-    caja.className = 'msg err';
-    caja.innerHTML = '⚠️ Ingresá tu correo electrónico y tu contraseña.';
+    if (caja) {
+      caja.className = 'msg err';
+      caja.innerHTML = '⚠️ Ingresá tu correo electrónico y tu contraseña.';
+    }
     return;
   }
 
-  btn.disabled = true;
-  caja.className = 'msg ok';
-  caja.innerHTML = '⏳ Verificando credenciales en el servidor...';
+  if (btn) btn.disabled = true;
+  if (caja) {
+    caja.className = 'msg ok';
+    caja.innerHTML = '⏳ Verificando credenciales en el servidor...';
+  }
 
   llamarAPI('LOGIN', { correo: mail, password: pass }, function(res) {
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
     TOKEN_ACTUAL = res.token;
 
     if (res.requiereCambioPassword) {
-      caja.className = 'msg';
-      caja.innerHTML = '';
+      if (caja) {
+        caja.className = 'msg';
+        caja.innerHTML = '';
+      }
       document.getElementById('modalCambioPassword').classList.remove('hidden');
       document.getElementById('inpNuevaPass1').focus();
       return;
@@ -182,9 +188,11 @@ function validarCorreoAcceso() {
                     USUARIO_SESION.esAdmin || USUARIO_SESION.esModeradorSP || USUARIO_SESION.esModeradorOP;
     abrirEntornoTrabajo(tienePtes ? 'Pendientes' : 'Reiterados');
   }, function(errTxt) {
-    btn.disabled = false;
-    caja.className = 'msg err';
-    caja.innerHTML = errTxt;
+    if (btn) btn.disabled = false;
+    if (caja) {
+      caja.className = 'msg err';
+      caja.innerHTML = errTxt;
+    }
   });
 }
 
