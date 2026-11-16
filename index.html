@@ -58,14 +58,13 @@
       </div>
 
       <nav class="nav-modules">
+        <span id="badgeBienvenidaTop" class="welcome-pill"></span>
         <button type="button" class="mod-btn active" id="navPlanilla" onclick="abrirModuloPrincipal('PLANILLA')">📋 Planilla Operativa</button>
         <button type="button" class="mod-btn hidden" id="navVivo" onclick="abrirModuloPrincipal('VIVO')">📊 Panel en vivo</button>
         <button type="button" class="mod-btn hidden" id="navCarga" onclick="abrirModuloPrincipal('CARGA')">🚀 Carga de planillas</button>
         <button type="button" class="mod-btn hidden" id="navPermisos" onclick="abrirModuloPrincipal('PERMISOS')">🔐 Asignar permisos</button>
         <button type="button" class="mod-btn hidden" id="navConfig" onclick="abrirModuloPrincipal('CONFIG')">⚙️ Configuración</button>
-        <button type="button" class="mod-btn hidden" id="navBackup" onclick="ejecutarBackupGeneral()">💾 Generar backup</button>
-        <button type="button" class="mod-btn btn-f11" onclick="alternarPantallaCompleta()">⛶ F11</button>
-        <button type="button" class="mod-btn" onclick="sincronizarConServidor(true)" title="Sincronizar ahora">🔄</button>
+        <button type="button" class="mod-btn btn-f11" onclick="alternarPantallaCompleta()">⛶ Pantalla completa</button>
         <button type="button" class="mod-btn btn-logout" onclick="cerrarSesionSAC()" title="Cerrar sesión y borrar datos en caché">🚪 Salir</button>
       </nav>
     </header>
@@ -74,15 +73,18 @@
     <section class="module-pane active" id="modPLANILLA">
       <div class="sheet-toolbar">
         <div class="switch-group">
-          <button type="button" class="sw-btn active-sec" id="btnSecSP" onclick="cambiarSecretariaActiva('SERVICIOS_PUBLICOS')">🏢 Servicios Públicos</button>
-          <button type="button" class="sw-btn" id="btnSecOP" onclick="cambiarSecretariaActiva('OBRAS_PUBLICAS')">🏗️ Obras Públicas</button>
-          <span class="divider">|</span>
-          <button type="button" class="sw-btn active-ptes" id="btnTabPtes" onclick="cambiarTipoReclamoActivo('Pendientes')">
-            📋 Ver mis reclamos pendientes (<span id="cntPtes">0</span>)
-          </button>
-          <button type="button" class="sw-btn" id="btnTabReit" onclick="cambiarTipoReclamoActivo('Reiterados')">
-            🔁 Ver mis reclamos reiterados (<span id="cntReit">0</span>)
-          </button>
+          <button type="button" class="sw-btn hidden" id="btnSwitchAdminGestor" onclick="alternarModoAdminGestor()"></button>
+
+          <select id="selFiltroDepTabla" onchange="renderizarGrillaReclamos()">
+            <option value="TODAS">🔍 Todas las dependencias</option>
+          </select>
+          <select id="selFiltroEstadoTabla" onchange="renderizarGrillaReclamos()">
+            <option value="TODOS">📋 Todos los reclamos</option>
+            <option value="INCOMPLETOS">⚠️ Solo pendientes de completar</option>
+            <option value="COMPLETOS">✅ Solo completados</option>
+          </select>
+          <input type="text" id="inpBuscarGrilla" oninput="renderizarGrillaReclamos()" placeholder="🔎 Buscar ID, asunto, barrio, gestor...">
+          <button type="button" class="sw-btn hidden" id="btnDescargarCSV" onclick="descargarVistaActualCSV()" title="Descargar tabla filtrada a mi PC (.csv)">📥 Descargar CSV</button>
         </div>
 
         <div class="switch-group">
@@ -208,102 +210,62 @@
       </div>
     </section>
 
-    <!-- MÓDULO 3: CENTRO DE CARGA Y BACKUP LOCAL / DRIVE -->
+    <!-- MÓDULO 3: CENTRO DE CARGA -->
     <section class="module-pane" id="modCARGA">
       <div class="content-scroll">
-        <div class="grid-2">
-          <div class="card-panel">
-            <h4>📥 Cargar crudo (.xlsx desde Drive o desde tu PC)</h4>
-            <div class="grid-2">
-              <div>
-                <label class="lbl">🏢 1. ¿A qué Secretaría cargar los datos?</label>
-                <select id="cargaSec">
-                  <option value="SERVICIOS_PUBLICOS">Secretaría de Servicios Públicos</option>
-                  <option value="OBRAS_PUBLICAS">Secretaría de Obras Públicas</option>
-                </select>
-              </div>
-              <div>
-                <label class="lbl">📋 2. ¿Qué clase de reclamos son?</label>
-                <select id="cargaTipo">
-                  <option value="Pendientes">Reclamos Pendientes</option>
-                  <option value="Reiterados">Reclamos Reiterados</option>
-                </select>
-              </div>
+        <div class="card-panel" style="max-width: 720px; margin: 0 auto;">
+          <h4>📥 Cargar crudo (.xlsx desde Drive o desde tu PC)</h4>
+          <div class="grid-2">
+            <div>
+              <label class="lbl">🏢 1. ¿A qué Secretaría cargar los datos?</label>
+              <select id="cargaSec" style="width:100%;">
+                <option value="SERVICIOS_PUBLICOS">Secretaría de Servicios Públicos</option>
+                <option value="OBRAS_PUBLICAS">Secretaría de Obras Públicas</option>
+              </select>
             </div>
-
-            <div style="margin-bottom:10px;">
-              <label class="lbl">📂 Opción A: Archivo crudo en carpeta "Carga_Crudos_SAC" (Drive)</label>
-              <div style="display:flex; gap:6px;">
-                <select id="selArchivoCrudoDrive" style="flex:1;">
-                  <option value="">Hacé clic en "Buscar en Drive"...</option>
-                </select>
-                <button type="button" class="sw-btn" onclick="listarArchivosCrudosDrive()">🔄 Buscar en Drive</button>
-              </div>
-            </div>
-
-            <div style="margin-bottom:10px;">
-              <label class="lbl">💻 Opción B: O seleccionar archivo .xlsx directo desde tu PC</label>
-              <input type="file" id="inpArchivoCrudoPC" accept=".xlsx,.xls">
-            </div>
-
-            <div class="grid-2">
-              <div>
-                <label class="lbl">📅 4. Fecha de Ingreso Desde (Opcional)</label>
-                <input type="date" id="cargaFechaDesde">
-              </div>
-              <div>
-                <label class="lbl">📅 5. Fecha de Ingreso Hasta (Opcional)</label>
-                <input type="date" id="cargaFechaHasta">
-              </div>
-            </div>
-
-            <label class="check-row">
-              <input type="checkbox" id="chkBackupCarga" checked>
-              <span>💾 <b>Resguardo automático previo:</b> Guardar backup en carpeta <em>BackUp_Panel</em> de Drive antes de cargar.</span>
-            </label>
-
-            <button type="button" class="btn-primary" style="margin-top:10px;" onclick="procesarCargaCrudo()">🚀 Ejecutar</button>
-          </div>
-
-          <div>
-            <div class="card-panel" style="margin-bottom:14px; border-left:4px solid #059669;">
-              <h4>⚡ Importación Directa y Descarga Local a tu PC</h4>
-              <p style="color:#475569; margin:0 0 10px 0;">Podés traer en 1 clic los datos y permisos de tus planillas anteriores de Drive o descargar un Backup completo a tu computadora:</p>
-              <button type="button" class="btn-primary" style="background:#059669; margin-bottom:8px;" onclick="importarPlanillasExistentes()">
-                📥 Importar datos y permisos de mis planillas actuales de Drive
-              </button>
-              <button type="button" class="btn-primary" style="background:#0f766e;" onclick="descargarBackupCompletoEnPC()">
-                💻 Descargar Backup Consolidado Local en mi PC (.csv / Excel)
-              </button>
-            </div>
-
-            <div class="card-panel" style="border-left:4px solid #dc2626;">
-              <h4>🧹 2. Vaciar / Limpiar hoja</h4>
-              <div class="grid-2">
-                <div>
-                  <label class="lbl">🏢 1. Seleccionar Secretaría a Limpiar</label>
-                  <select id="limpiarSec">
-                    <option value="SERVICIOS_PUBLICOS">Secretaría de Servicios Públicos</option>
-                    <option value="OBRAS_PUBLICAS">Secretaría de Obras Públicas</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="lbl">📋 2. Seleccionar Pestaña a Vaciar</label>
-                  <select id="limpiarTipo">
-                    <option value="Pendientes">Pestaña: Pendientes</option>
-                    <option value="Reiterados">Pestaña: Reiterados</option>
-                  </select>
-                </div>
-              </div>
-              <label class="check-row" style="margin-bottom:10px;">
-                <input type="checkbox" id="chkBackupLimpiar" checked>
-                <span>💾 <b>Guardar Backup en BackUp_Panel (Drive) antes de vaciar la hoja.</b></span>
-              </label>
-              <button type="button" class="btn-primary" style="background:#dc2626;" onclick="procesarVaciadoHoja()">🧹 Vaciar hoja</button>
+            <div>
+              <label class="lbl">📋 2. ¿Qué clase de reclamos son?</label>
+              <select id="cargaTipo" style="width:100%;">
+                <option value="Pendientes">Reclamos Pendientes</option>
+                <option value="Reiterados">Reclamos Reiterados</option>
+              </select>
             </div>
           </div>
+
+          <div style="margin-bottom:10px;">
+            <label class="lbl">📂 Opción A: Archivo crudo en carpeta "Carga_Crudos_SAC" (Drive)</label>
+            <div style="display:flex; gap:6px;">
+              <select id="selArchivoCrudoDrive" style="flex:1;">
+                <option value="">Hacé clic en "Buscar en Drive"...</option>
+              </select>
+              <button type="button" class="sw-btn" onclick="listarArchivosCrudosDrive()">🔄 Buscar en Drive</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <label class="lbl">💻 Opción B: O seleccionar archivo .xlsx directo desde tu PC</label>
+            <input type="file" id="inpArchivoCrudoPC" accept=".xlsx,.xls">
+          </div>
+
+          <div class="grid-2">
+            <div>
+              <label class="lbl">📅 4. Fecha de Ingreso Desde (Opcional)</label>
+              <input type="date" id="cargaFechaDesde" style="width:100%;">
+            </div>
+            <div>
+              <label class="lbl">📅 5. Fecha de Ingreso Hasta (Opcional)</label>
+              <input type="date" id="cargaFechaHasta" style="width:100%;">
+            </div>
+          </div>
+
+          <label class="check-row">
+            <input type="checkbox" id="chkBackupCarga" checked>
+            <span>💾 <b>Resguardo automático previo:</b> Guardar backup en carpeta <em>BackUp_Panel</em> de Drive antes de cargar.</span>
+          </label>
+
+          <button type="button" class="btn-primary" style="margin-top:10px;" onclick="procesarCargaCrudo()">🚀 Ejecutar</button>
+          <div id="cajaEstadoCarga" class="msg"></div>
         </div>
-        <div id="cajaEstadoCarga" class="msg"></div>
       </div>
     </section>
 
