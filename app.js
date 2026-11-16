@@ -1,60 +1,80 @@
-var DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbyLFxbzBKqP2BRIXoywWpFgxdDXImNetYSVerQPYFDgJ91ChUYisEm3BAMdgKDoRMnd/exec';
-var API_URL = localStorage.getItem('sac_custom_api_url') || DEFAULT_API_URL;
-var CACHE_KEY_BOOT = 'sac_boot_cache_v1';
+/**
+ * ============================================================================
+ * LÓGICA FRONTEND DE ALTA EFICIENCIA Y SEGURIDAD — UESAC.GITHUB.IO (app.js)
+ * ============================================================================
+ */
+
+var API_URL = 'https://script.google.com/macros/s/AKfycbyLFxbzBKqP2BRIXoywWpFgxdDXImNetYSVerQPYFDgJ91ChUYisEm3BAMdgKDoRMnd/exec';
+var SESSION_TOKEN_KEY = 'sac_session_token_v2';
+var SESSION_CACHE_KEY = 'sac_session_data_v2';
 
 var STATE = null;
 var USUARIO_SESION = null;
+var TOKEN_ACTUAL = null;
 var SEC_ACTIVA = 'SERVICIOS_PUBLICOS';
 var TIPO_ACTIVO = 'Pendientes';
-var MODO_VISTA_ADMIN_GESTOR = 'MIS_ASIGNADOS'; // 'MIS_ASIGNADOS' o 'TODA_LA_PLANILLA'
+var MODO_VISTA_ADMIN_GESTOR = 'MIS_ASIGNADOS';
 var CORREO_EDITANDO_PERM = null;
 var CHARTS_VIVO = {};
 
 /* ============================================================================
- * 1. ARRANQUE ULTRARRÁPIDO (STALE-WHILE-REVALIDATE) Y CONTROL DE ACCESO
+ * 1. ARRANQUE, PING DE CONEXIÓN Y CONTROL DE ACCESO
  * ============================================================================ */
 
 window.addEventListener('DOMContentLoaded', function() {
-  var inp = document.getElementById('inpMailLogin');
-  if (inp) {
-    inp.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') validarCorreoAcceso();
-    });
-  }
+  var inpMail = document.getElementById('inpMailLogin');
+  var inpPass = document.getElementById('inpPassLogin');
+  if (inpMail) inpMail.addEventListener('keydown', function(e) { if (e.key === 'Enter') validarCorreoAcceso(); });
+  if (inpPass) inpPass.addEventListener('keydown', function(e) { if (e.key === 'Enter') validarCorreoAcceso(); });
 
-  // 1. Cargar instantáneamente desde caché local si existe (< 10 ms)
-  var cached = localStorage.getItem(CACHE_KEY_BOOT);
-  if (cached) {
-    try {
-      STATE = JSON.parse(cached);
-      document.getElementById('indicadorCargaInicial').textContent = '🟢 Sistema listo (Sincronizando cambios en segundo plano...)';
-    } catch (e) {}
-  }
+  var inpN1 = document.getElementById('inpNuevaPass1');
+  var inpN2 = document.getElementById('inpNuevaPass2');
+  if (inpN1) inpN1.addEventListener('keydown', function(e) { if (e.key === 'Enter') confirmarCambioPasswordObligatorio(); });
+  if (inpN2) inpN2.addEventListener('keydown', function(e) { if (e.key === 'Enter') confirmarCambioPasswordObligatorio(); });
 
-  // 2. Sincronizar en paralelo con el servidor de Google Sheets
-  sincronizarConServidor(false);
+  window.addEventListener('keydown', function(e) {
+    var modalPass = document.getElementById('modalCambioPassword');
+    if (modalPass && !modalPass.classList.contains('hidden') && e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
+
+  verificarEstadoConexionInicial();
+
+  var tokenGuardado = sessionStorage.getItem(SESSION_TOKEN_KEY);
+  if (tokenGuardado) {
+    TOKEN_ACTUAL = tokenGuardado;
+    var cacheGuardado = sessionStorage.getItem(SESSION_CACHE_KEY);
+    if (cacheGuardado) {
+      try {
+        STATE = JSON.parse(cacheGuardado);
+        USUARIO_SESION = STATE.perfilUsuario;
+        abrirEntornoTrabajo(TIPO_ACTIVO);
+      } catch (e) {}
+    }
+    sincronizarConServidor(false);
+  }
 });
 
-function configurarUrlApiManual() {
-  var nueva = prompt('Ingresá la URL de implementación (/exec) de Google Apps Script:', API_URL);
-  if (nueva && nueva.trim().indexOf('https://script.google.com') === 0) {
-    API_URL = nueva.trim();
-    localStorage.setItem('sac_custom_api_url', API_URL);
-    sincronizarConServidor(true);
-  }
+function verificarEstadoConexionInicial() {
+  var ind = document.getElementById('indicadorCargaInicial');
+  llamarAPI('PING', {}, function(res) {
+    if (ind) ind.textContent = '🟢 Conectado (' + res.fecha + ')';
+  }, function(errTxt) {
+    if (ind) ind.textContent = '⚠️ Sin conexión (' + errTxt + ')';
+  });
 }
 
 function llamarAPI(accion, payload, onSuccess, onError) {
-  if (!API_URL || API_URL.indexOf('PEGAR_AQUI') !== -1) {
-    var msg = 'Falta configurar la URL /exec de Apps Script (hacé clic en el ícono ⚙️ arriba a la derecha).';
-    if (onError) onError(msg); else alert(msg);
-    return;
-  }
-
   fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ accion: accion, payload: payload || {} })
+    body: JSON.stringify({
+      accion: accion,
+      token: TOKEN_ACTUAL || '',
+      payload: payload || {}
+    })
   })
   .then(function(r) { return r.json(); })
   .then(function(res) {
@@ -62,32 +82,16 @@ function llamarAPI(accion, payload, onSuccess, onError) {
       if (onSuccess) onSuccess(res.data);
     } else {
       var errTxt = (res && res.error) ? res.error : 'Error desconocido en el servidor.';
+      if (errTxt.indexOf('SESION_INVALIDA') !== -1) {
+        limpiarTodoSessionStorage();
+        window.location.reload();
+        return;
+      }
       if (onError) onError(errTxt); else alert('❌ Atención: ' + errTxt);
     }
   })
   .catch(function(err) {
     if (onError) onError(err.message || String(err));
-  });
-}
-
-function sincronizarConServidor(mostrarAviso) {
-  if (mostrarAviso) actualizarPillSync('⏳ Sincronizando...');
-  llamarAPI('OBTENER_PAQUETE_INICIAL', {}, function(paquete) {
-    STATE = paquete;
-    try { localStorage.setItem(CACHE_KEY_BOOT, JSON.stringify(paquete)); } catch (e) {}
-    var ind = document.getElementById('indicadorCargaInicial');
-    if (ind) ind.textContent = '🟢 Conectado en tiempo real (' + paquete.actualizadoEn + ')';
-    actualizarPillSync('🟢 En línea (' + paquete.actualizadoEn + ')');
-
-    if (USUARIO_SESION) {
-      reconstruirPerfilUsuario(USUARIO_SESION.email);
-      actualizarContadoresYSelectores();
-      renderizarGrillaReclamos();
-    }
-  }, function(errTxt) {
-    var ind = document.getElementById('indicadorCargaInicial');
-    if (ind) ind.textContent = '⚠️ Sin conexión con API (' + errTxt + ')';
-    actualizarPillSync('⚠️ Modo caché local');
   });
 }
 
@@ -98,83 +102,101 @@ function obtenerSaludoHorario() {
   return '🌙 Buenas noches, bienvenido';
 }
 
-function reconstruirPerfilUsuario(mail) {
-  var mSP = (STATE.configPermisos.mapeos.SERVICIOS_PUBLICOS || {})[mail];
-  var mOP = (STATE.configPermisos.mapeos.OBRAS_PUBLICAS || {})[mail];
+function validarCorreoAcceso() {
+  var mail = document.getElementById('inpMailLogin').value.trim().toLowerCase();
+  var pass = document.getElementById('inpPassLogin').value;
+  var caja = document.getElementById('cajaResultadoLogin');
+  var btn = document.getElementById('btnVerificarLogin');
 
-  var esSuperAdminDefecto = (
-    mail === 'carlosfernandezws@gmail.com' ||
-    mail === 'carlosfernandezwz@gmail.com' ||
-    (STATE.correoPropietario && mail === STATE.correoPropietario)
-  );
+  if (!mail || mail.indexOf('@') === -1 || !pass) {
+    caja.className = 'msg err';
+    caja.innerHTML = '⚠️ Ingresá tu correo electrónico y tu contraseña.';
+    return;
+  }
 
-  if (!mSP && !mOP && !esSuperAdminDefecto) return null;
+  btn.disabled = true;
+  caja.className = 'msg ok';
+  caja.innerHTML = '⏳ Verificando credenciales en el servidor...';
 
-  var esAdmin = Boolean(esSuperAdminDefecto || (mSP && mSP.esAdmin) || (mOP && mOP.esAdmin));
-  var verPanelVivo = Boolean(esSuperAdminDefecto || (mSP && mSP.verPanelEnVivo) || (mOP && mOP.verPanelEnVivo));
-  var esModSP = Boolean(mSP && mSP.esModerador);
-  var esModOP = Boolean(mOP && mOP.esModerador);
+  llamarAPI('LOGIN', { correo: mail, password: pass }, function(res) {
+    btn.disabled = false;
+    TOKEN_ACTUAL = res.token;
 
-  var ptesSP = (mSP && mSP.Pendientes) ? mSP.Pendientes : [];
-  var reitSP = (mSP && mSP.Reiterados) ? mSP.Reiterados : [];
-  var ptesOP = (mOP && mOP.Pendientes) ? mOP.Pendientes : [];
-  var reitOP = (mOP && mOP.Reiterados) ? mOP.Reiterados : [];
+    if (res.requiereCambioPassword) {
+      caja.className = 'msg';
+      caja.innerHTML = '';
+      document.getElementById('modalCambioPassword').classList.remove('hidden');
+      document.getElementById('inpNuevaPass1').focus();
+      return;
+    }
 
-  var unicasMap = {};
-  ptesSP.concat(reitSP, ptesOP, reitOP).forEach(function(d) {
-    if (d) unicasMap[String(d).trim().toUpperCase()] = true;
+    STATE = res.paquete;
+    USUARIO_SESION = STATE.perfilUsuario;
+    sessionStorage.setItem(SESSION_TOKEN_KEY, TOKEN_ACTUAL);
+    try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(STATE)); } catch (e) {}
+
+    mostrarBienvenidaSegunRango(USUARIO_SESION);
+  }, function(errTxt) {
+    btn.disabled = false;
+    caja.className = 'msg err';
+    caja.innerHTML = errTxt;
   });
-  var totalDepsAsignadas = Object.keys(unicasMap).length;
-
-  return {
-    email: mail,
-    esAdmin: esAdmin,
-    verPanelEnVivo: verPanelVivo,
-    esModeradorSP: esModSP,
-    esModeradorOP: esModOP,
-    tieneAsignacionesGestor: totalDepsAsignadas > 0,
-    totalAsignadas: totalDepsAsignadas,
-    SERVICIOS_PUBLICOS: { Pendientes: ptesSP, Reiterados: reitSP },
-    OBRAS_PUBLICAS: { Pendientes: ptesOP, Reiterados: reitOP }
-  };
 }
 
-function validarCorreoAcceso() {
-  if (!STATE) {
-    alert('Aguardá un instante a que termine de conectar con la base de datos o verificá la URL de la API en ⚙️.');
+function confirmarCambioPasswordObligatorio() {
+  var p1 = document.getElementById('inpNuevaPass1').value.trim();
+  var p2 = document.getElementById('inpNuevaPass2').value.trim();
+  var msg = document.getElementById('msgCambioPassword');
+  var btn = document.getElementById('btnGuardarNuevaPass');
+
+  if (p1.length < 8) {
+    msg.className = 'msg err';
+    msg.innerHTML = '⚠️ La nueva contraseña debe tener como mínimo 8 caracteres.';
     return;
   }
-  var mail = document.getElementById('inpMailLogin').value.trim().toLowerCase();
+  if (p1.toLowerCase() === 'uesac123') {
+    msg.className = 'msg err';
+    msg.innerHTML = '⚠️ La nueva contraseña debe ser distinta de "uesac123".';
+    return;
+  }
+  if (p1 !== p2) {
+    msg.className = 'msg err';
+    msg.innerHTML = '⚠️ Las dos contraseñas ingresadas no coinciden.';
+    return;
+  }
+
+  btn.disabled = true;
+  msg.className = 'msg ok';
+  msg.innerHTML = '⏳ Guardando nueva contraseña encriptada...';
+
+  llamarAPI('CAMBIAR_PASSWORD', { nuevaPassword: p1 }, function() {
+    limpiarTodoSessionStorage();
+    msg.className = 'msg ok';
+    msg.innerHTML = '✅ ¡Contraseña actualizada correctamente! Recargando página para ingresar con tu nueva clave...';
+    setTimeout(function() {
+      window.location.reload();
+    }, 1000);
+  }, function(errTxt) {
+    btn.disabled = false;
+    msg.className = 'msg err';
+    msg.innerHTML = errTxt;
+  });
+}
+
+function mostrarBienvenidaSegunRango(perfil) {
   var caja = document.getElementById('cajaResultadoLogin');
-
-  if (!mail || mail.indexOf('@') === -1) {
-    caja.className = 'msg err';
-    caja.innerHTML = '⚠️ Ingresá un correo electrónico válido.';
-    return;
-  }
-
-  var perfil = reconstruirPerfilUsuario(mail);
-  if (!perfil || (!perfil.esAdmin && !perfil.esModeradorSP && !perfil.esModeradorOP && !perfil.tieneAsignacionesGestor)) {
-    caja.className = 'msg err';
-    caja.innerHTML = '⛔ <b>Acceso denegado:</b> El correo <b>' + mail + '</b> no tiene dependencias ni asuntos asignados en esta planilla.';
-    return;
-  }
-
-  USUARIO_SESION = perfil;
   document.getElementById('bloqueFormularioLogin').style.display = 'none';
   var saludo = obtenerSaludoHorario();
 
-  // Caso 1: Administrador PURO (sin reclamos propios asignados como gestor) -> Saluda y entra directo
   if (perfil.esAdmin && !perfil.tieneAsignacionesGestor) {
     MODO_VISTA_ADMIN_GESTOR = 'TODA_LA_PLANILLA';
     caja.className = 'msg ok';
     caja.innerHTML = '<div class="welcome-title">' + saludo + '</div>' +
                      '<div class="counter-lbl">👑 Acceso de Administrador verificado. Abriendo sistema...</div>';
-    setTimeout( function() { abrirEntornoTrabajo('Pendientes'); }, 800);
+    setTimeout(function() { abrirEntornoTrabajo('Pendientes'); }, 750);
     return;
   }
 
-  // Caso 2: Gestor, Moderador o Administrador Híbrido (Admin + Gestor)
   var html = '<div class="welcome-title">' + saludo + '</div>';
   var tienePtes = (perfil.SERVICIOS_PUBLICOS.Pendientes.length + perfil.OBRAS_PUBLICAS.Pendientes.length) > 0 || perfil.esModeradorSP || perfil.esModeradorOP;
   var tieneReit = (perfil.SERVICIOS_PUBLICOS.Reiterados.length + perfil.OBRAS_PUBLICAS.Reiterados.length) > 0 || perfil.esModeradorSP || perfil.esModeradorOP;
@@ -198,6 +220,21 @@ function validarCorreoAcceso() {
   caja.innerHTML = html;
 }
 
+function sincronizarConServidor(mostrarAviso) {
+  if (!TOKEN_ACTUAL) return;
+  if (mostrarAviso) actualizarPillSync('⏳ Sincronizando...');
+  llamarAPI('RECARGAR_DATOS', {}, function(paquete) {
+    STATE = paquete;
+    USUARIO_SESION = paquete.perfilUsuario;
+    try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(paquete)); } catch (e) {}
+    actualizarPillSync('🟢 Conectado (' + paquete.actualizadoEn + ')');
+    actualizarContadoresYSelectores();
+    renderizarGrillaReclamos();
+  }, function() {
+    actualizarPillSync('⚠️ Error de red');
+  });
+}
+
 function abrirEntornoTrabajo(tipoInicial) {
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('appShell').style.display = 'flex';
@@ -218,14 +255,12 @@ function abrirEntornoTrabajo(tipoInicial) {
     badge.textContent = '👤 Gestor: ' + u.email;
   }
 
-  // Mostrar pestañas superiores según permisos (Punto 6: Panel en Vivo controlado por tilde)
   document.getElementById('navVivo').classList.toggle('hidden', !u.verPanelEnVivo);
   document.getElementById('navCarga').classList.toggle('hidden', !u.esAdmin);
   document.getElementById('navPermisos').classList.toggle('hidden', !u.esAdmin);
   document.getElementById('navConfig').classList.toggle('hidden', !u.esAdmin);
   document.getElementById('navBackup').classList.toggle('hidden', !u.esAdmin);
 
-  // Botón de alternancia rápida para Administradores que también son Gestores
   var btnSw = document.getElementById('btnSwitchAdminGestor');
   if (u.esAdmin && u.tieneAsignacionesGestor) {
     btnSw.classList.remove('hidden');
@@ -234,7 +269,6 @@ function abrirEntornoTrabajo(tipoInicial) {
     btnSw.classList.add('hidden');
   }
 
-  // Visibilidad de Secretarías
   var puedeSP = u.esAdmin || u.esModeradorSP || (u.SERVICIOS_PUBLICOS.Pendientes.length + u.SERVICIOS_PUBLICOS.Reiterados.length) > 0;
   var puedeOP = u.esAdmin || u.esModeradorOP || (u.OBRAS_PUBLICAS.Pendientes.length + u.OBRAS_PUBLICAS.Reiterados.length) > 0;
 
@@ -268,27 +302,43 @@ function actualizarTextoBotonHibrido() {
   }
 }
 
-function cerrarSesionSAC() {
+function limpiarTodoSessionStorage() {
+  try { sessionStorage.clear(); } catch (e) {}
+  STATE = null;
   USUARIO_SESION = null;
+  TOKEN_ACTUAL = null;
+}
+
+function cerrarSesionSAC() {
+  var tk = TOKEN_ACTUAL;
+  limpiarTodoSessionStorage();
+  if (tk) {
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ accion: 'CERRAR_SESION', token: tk, payload: {} })
+    }).catch(function() {});
+  }
+  document.getElementById('tablaReclamosDOM').innerHTML = '';
   document.getElementById('appShell').style.display = 'none';
   document.getElementById('loginOverlay').style.display = 'flex';
   document.getElementById('bloqueFormularioLogin').style.display = 'block';
+  document.getElementById('inpPassLogin').value = '';
   document.getElementById('cajaResultadoLogin').className = 'msg';
   document.getElementById('cajaResultadoLogin').innerHTML = '';
+  verificarEstadoConexionInicial();
 }
 
 /* ============================================================================
- * 2. MOTOR DE GRILLA INTERACTIVA Y GUARDADO EN 0 MS (OPTIMISTIC UI)
+ * 2. MOTOR DE GRILLA INTERACTIVA Y GUARDADO EN 0 MS
  * ============================================================================ */
 
 function puedeUsuarioVerFila(r, claveSec, tipoReclamo) {
   if (!USUARIO_SESION) return false;
   var u = USUARIO_SESION;
 
-  if (u.esAdmin && (!u.tieneAsignacionesGestor || MODO_VISTA_ADMIN_GESTOR === 'TODA_LA_PLANILLA')) {
-    return true;
-  }
-  if ((claveSec === 'SERVICIOS_PUBLICOS' && u.esModeradorSP) || (claveSec === 'OBRAS_PUBLICAS' && u.esModeradorOP)) {
+  if (!u.esAdmin) return true;
+  if (!u.tieneAsignacionesGestor || MODO_VISTA_ADMIN_GESTOR === 'TODA_LA_PLANILLA') {
     return true;
   }
 
@@ -330,12 +380,24 @@ function actualizarContadoresYSelectores() {
 
   var listaAct = (TIPO_ACTIVO === 'Pendientes') ? ptes : reit;
   var depsMap = {};
+
+  // Incluir las dependencias presentes en los reclamos visibles del usuario
   listaAct.forEach(function(r) {
     var d = (TIPO_ACTIVO === 'Pendientes') ? (r.gestorDep || r.depPrincipal) : r.dependencia;
     if (d) depsMap[d] = true;
   });
 
+  // Incluir también las dependencias asignadas directamente al usuario en caso de que alguna tenga 0 reclamos
+  if (USUARIO_SESION && USUARIO_SESION[SEC_ACTIVA] && USUARIO_SESION[SEC_ACTIVA][TIPO_ACTIVO]) {
+    if (!USUARIO_SESION.esAdmin || MODO_VISTA_ADMIN_GESTOR === 'MIS_ASIGNADOS') {
+      USUARIO_SESION[SEC_ACTIVA][TIPO_ACTIVO].forEach(function(asig) {
+        if (asig) depsMap[asig] = true;
+      });
+    }
+  }
+
   var sel = document.getElementById('selFiltroDepTabla');
+  var valorPrevio = sel.value || 'TODAS';
   sel.innerHTML = '<option value="TODAS">🔍 Todas las dependencias (' + Object.keys(depsMap).length + ')</option>';
   Object.keys(depsMap).sort().forEach(function(d) {
     var o = document.createElement('option');
@@ -343,6 +405,7 @@ function actualizarContadoresYSelectores() {
     o.textContent = d;
     sel.appendChild(o);
   });
+  if (depsMap[valorPrevio]) sel.value = valorPrevio;
 }
 
 function claseColorChip(valor) {
@@ -370,8 +433,10 @@ function renderizarGrillaReclamos() {
 
   var filas = base.filter(function(r) {
     if (fDep !== 'TODAS') {
-      var dComp = esPtes ? (r.gestorDep || r.depPrincipal) : r.dependencia;
-      if (dComp !== fDep) return false;
+      var coincideDep = esPtes
+        ? (r.gestorDep === fDep || r.depPrincipal === fDep || r.asunto === fDep)
+        : (r.dependencia === fDep || r.problema === fDep);
+      if (!coincideDep) return false;
     }
     var completo = (r.estado !== '' && r.motivo !== '');
     if (fEst === 'INCOMPLETOS' && completo) return false;
@@ -482,7 +547,6 @@ function guardarFilaOptimista(idContacto, filaHoja) {
   var valEst = selEl.value.trim();
   var valMot = motEl.value.trim();
 
-  // 1. Actualización visual instantánea en 0 ms (Optimistic UI)
   selEl.className = 'chip-select ' + claseColorChip(valEst);
   tdEst.classList.toggle('mandatory-alert', valEst === '');
   tdMot.classList.toggle('mandatory-alert', valMot === '');
@@ -499,9 +563,8 @@ function guardarFilaOptimista(idContacto, filaHoja) {
       break;
     }
   }
-  try { localStorage.setItem(CACHE_KEY_BOOT, JSON.stringify(STATE)); } catch (e) {}
+  try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(STATE)); } catch (e) {}
 
-  // 2. Envío silencioso en segundo plano a Google Sheets
   actualizarPillSync('⏳ Guardando #' + idContacto + '...');
   llamarAPI('GUARDAR_CELDA', {
     sec: SEC_ACTIVA,
@@ -513,16 +576,19 @@ function guardarFilaOptimista(idContacto, filaHoja) {
   }, function(res) {
     if (tdResp) tdResp.textContent = res.ultResp;
     actualizarPillSync('✅ Guardado (' + res.ultResp + ')');
-  }, function(errTxt) {
+  }, function() {
     actualizarPillSync('⚠️ Reintentando guardado...');
   });
 }
 
 /* ============================================================================
- * 3. NAVEGACIÓN DE MÓDULOS Y PANEL EN VIVO COMPLETO (CON RANGO ETARIO DNI)
+ * 3. NAVEGACIÓN DE MÓDULOS Y PANEL EN VIVO
  * ============================================================================ */
 
 function abrirModuloPrincipal(mod) {
+  if (mod === 'VIVO' && (!USUARIO_SESION || !USUARIO_SESION.verPanelEnVivo)) return;
+  if ((mod === 'CARGA' || mod === 'PERMISOS' || mod === 'CONFIG') && (!USUARIO_SESION || !USUARIO_SESION.esAdmin)) return;
+
   ['PLANILLA', 'VIVO', 'CARGA', 'PERMISOS', 'CONFIG'].forEach(function(m) {
     document.getElementById('mod' + m).classList.toggle('active', m === mod);
   });
@@ -555,9 +621,28 @@ function estimarRangoEtarioPorDNI(dniNum) {
   return '18 a 29 años (Jóvenes)';
 }
 
+function actualizarSelectorEstadosVivo(fClase) {
+  var selEst = document.getElementById('fVivoEstado');
+  var valActual = selEst.value || 'TODAS';
+  var opciones = (fClase === 'Pendientes') ? (STATE.opcionesPendientes || []) : (STATE.opcionesReiterados || []);
+
+  var html = '<option value="TODAS">Todos (Con y sin respuesta)</option>' +
+             '<option value="CON_RESPUESTA">✅ Solo con Estado cargado</option>' +
+             '<option value="SIN_RESPUESTA">⏳ Solo sin Estado cargado</option>';
+  opciones.forEach(function(op) {
+    html += '<option value="' + escaparAttr(op) + '">Estado: ' + escaparHtml(op) + '</option>';
+  });
+  selEst.innerHTML = html;
+  if (valActual === 'TODAS' || valActual === 'CON_RESPUESTA' || valActual === 'SIN_RESPUESTA' || opciones.indexOf(valActual) !== -1) {
+    selEst.value = valActual;
+  }
+}
+
 function recalcularPanelEnVivo() {
   var fSec = document.getElementById('fVivoSec').value;
   var fClase = document.getElementById('fVivoClase').value;
+  actualizarSelectorEstadosVivo(fClase);
+
   var fDesde = document.getElementById('fVivoDesde').value;
   var fHasta = document.getElementById('fVivoHasta').value;
   var fEst = document.getElementById('fVivoEstado').value;
@@ -573,6 +658,7 @@ function recalcularPanelEnVivo() {
     if (fHasta && (!r.fechaISO || r.fechaISO > fHasta)) continue;
     if (fEst === 'CON_RESPUESTA' && !r.estado) continue;
     if (fEst === 'SIN_RESPUESTA' && r.estado) continue;
+    if (fEst !== 'TODAS' && fEst !== 'CON_RESPUESTA' && fEst !== 'SIN_RESPUESTA' && r.estado !== fEst) continue;
     if (vistos[r.id]) { duplicados++; continue; }
     vistos[r.id] = true;
     filtrados.push(r);
@@ -705,7 +791,7 @@ function renderChart(id, tipo, labels, data, color, horiz) {
 }
 
 /* ============================================================================
- * 4. MÓDULO DE PERMISOS + TILDE "PANEL EN VIVO" + AUDITORÍA (PUNTOS 6 Y 7)
+ * 4. MÓDULO DE PERMISOS + RESTABLECER CONTRASEÑA + AUDITORÍA (SOLO ADMINS)
  * ============================================================================ */
 
 function cambiarModoPermisos(modo) {
@@ -772,6 +858,22 @@ function alCambiarTildeEspecial(campo, valor) {
   renderizarModuloPermisos();
 }
 
+function restablecerPasswordUsuarioActual() {
+  if (!CORREO_EDITANDO_PERM) return;
+  restablecerPasswordDeCorreo(CORREO_EDITANDO_PERM);
+}
+
+function restablecerPasswordDeCorreo(mail, ev) {
+  if (ev) ev.stopPropagation();
+  if (!confirm('¿Restablecer la contraseña de "' + mail + '" a la clave inicial "uesac123"? En su próximo ingreso deberá elegir una nueva.')) return;
+  mostrarMsgPerm(true, '⏳ Restableciendo contraseña de ' + mail + '...');
+  llamarAPI('RESTABLECER_PASSWORD', { correoObjetivo: mail }, function(res) {
+    mostrarMsgPerm(true, '✅ ' + res.mensaje);
+  }, function(errTxt) {
+    mostrarMsgPerm(false, errTxt);
+  });
+}
+
 function aplicarRolEnAmbasSecretarias() {
   if (!CORREO_EDITANDO_PERM) return;
   var secAct = document.getElementById('selSecPerm').value;
@@ -813,7 +915,10 @@ function renderizarModuloPermisos() {
     var cls = (m === CORREO_EDITANDO_PERM) ? 'email-item active' : 'email-item';
     htmlC += '<div class="' + cls + '" onclick="CORREO_EDITANDO_PERM=\'' + m + '\'; renderizarModuloPermisos();">' +
       '<div><div>' + m + '</div><div style="font-size:10.5px; color:#64748b;">' + tags.join(' · ') + '</div></div>' +
-      '<button type="button" class="del-btn" onclick="eliminarCorreoPerm(\'' + m + '\', event)">✕</button>' +
+      '<div style="display:flex; gap:6px; align-items:center;">' +
+        '<button type="button" class="btn-del-item" title="Restablecer contraseña a uesac123" onclick="restablecerPasswordDeCorreo(\'' + m + '\', event)">🔄</button>' +
+        '<button type="button" class="del-btn" title="Quitar correo" onclick="eliminarCorreoPerm(\'' + m + '\', event)">✕</button>' +
+      '</div>' +
     '</div>';
   });
   document.getElementById('listaCorreosPerm').innerHTML = htmlC || '<div style="padding:12px; color:#64748b;">Agregá un correo arriba.</div>';
@@ -954,7 +1059,7 @@ function renderizarPanelesAuditoria(catP, catR, usoP, usoR) {
 }
 
 function guardarPermisosWeb(aplicarAhora) {
-  mostrarMsgPerm(true, '⏳ Guardando configuración de permisos en Drive...');
+  mostrarMsgPerm(true, '⏳ Guardando configuración de permisos en el servidor...');
   var payload = {
     aplicarEnHojaAhora: aplicarAhora,
     columnaPendientes: document.getElementById('selColPtesPerm').value,
@@ -965,9 +1070,9 @@ function guardarPermisosWeb(aplicarAhora) {
   };
   llamarAPI('GUARDAR_PERMISOS', payload, function(nuevoPaquete) {
     STATE = nuevoPaquete;
-    localStorage.setItem(CACHE_KEY_BOOT, JSON.stringify(nuevoPaquete));
-    reconstruirPerfilUsuario(USUARIO_SESION.email);
-    mostrarMsgPerm(true, '✅ ¡Permisos guardados y aplicados correctamente!');
+    USUARIO_SESION = nuevoPaquete.perfilUsuario;
+    try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(nuevoPaquete)); } catch (e) {}
+    mostrarMsgPerm(true, '✅ ¡Permisos guardados y aplicados correctamente! (Usuarios nuevos creados con clave inicial "uesac123").');
   });
 }
 
@@ -978,7 +1083,7 @@ function mostrarMsgPerm(ok, txt) {
 }
 
 /* ============================================================================
- * 5. CARGA DE CRUDOS, CONFIGURACIÓN SIN CÓDIGO Y DESCARGAS LOCALES A LA PC
+ * 5. CARGA DE CRUDOS, CONFIGURACIÓN Y DESCARGAS LOCALES (SOLO ADMINS)
  * ============================================================================ */
 
 function listarArchivosCrudosDrive() {
@@ -1022,7 +1127,7 @@ function procesarCargaCrudo() {
       paramsBase.fileName = f.name;
       llamarAPI('CARGAR_CRUDO_BASE64', paramsBase, function(res) {
         STATE = res.paqueteActualizado;
-        localStorage.setItem(CACHE_KEY_BOOT, JSON.stringify(STATE));
+        try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(STATE)); } catch (ex) {}
         caja.innerHTML = '✅ ' + res.resumen;
         actualizarContadoresYSelectores();
         renderizarGrillaReclamos();
@@ -1033,7 +1138,7 @@ function procesarCargaCrudo() {
     paramsBase.idArchivo = idDrive;
     llamarAPI('CARGAR_CRUDO', paramsBase, function(res) {
       STATE = res.paqueteActualizado;
-      localStorage.setItem(CACHE_KEY_BOOT, JSON.stringify(STATE));
+      try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(STATE)); } catch (ex) {}
       caja.innerHTML = '✅ ' + res.resumen;
       actualizarContadoresYSelectores();
       renderizarGrillaReclamos();
@@ -1054,7 +1159,7 @@ function procesarVaciadoHoja() {
     hacerBackupPrevio: document.getElementById('chkBackupLimpiar').checked
   }, function(res) {
     STATE = res.paqueteActualizado;
-    localStorage.setItem(CACHE_KEY_BOOT, JSON.stringify(STATE));
+    try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(STATE)); } catch (ex) {}
     caja.innerHTML = '✅ ' + res.resumen;
     actualizarContadoresYSelectores();
     renderizarGrillaReclamos();
@@ -1067,7 +1172,7 @@ function importarPlanillasExistentes() {
   caja.innerHTML = '⏳ Importando reclamos y permisos desde tus planillas de Drive...';
   llamarAPI('IMPORTAR_EXISTENTES', {}, function(res) {
     STATE = res.paqueteActualizado;
-    localStorage.setItem(CACHE_KEY_BOOT, JSON.stringify(STATE));
+    try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(STATE)); } catch (ex) {}
     caja.innerHTML = '✅ ' + res.resumen;
     actualizarContadoresYSelectores();
     renderizarGrillaReclamos();
@@ -1116,6 +1221,7 @@ function exportarArregloACSV(arr, nombreArchivo) {
 
 function cargarFormularioParametrosSistema() {
   var p = STATE.parametrosSistema;
+  if (!p) return;
   document.getElementById('cfgOpcionesPtes').value = (p.opcionesPendientes || []).join('\n');
   document.getElementById('cfgOpcionesReit').value = (p.opcionesReiterados || []).join('\n');
   document.getElementById('cfgCarpetaProyecto').value = p.carpetaProyecto || 'Proyecto_SAC';
@@ -1134,7 +1240,7 @@ function guardarParametrosSistemaDesdeWeb() {
   actualizarPillSync('⏳ Guardando parámetros...');
   llamarAPI('GUARDAR_PARAMETROS_SISTEMA', nuevos, function(paquete) {
     STATE = paquete;
-    localStorage.setItem(CACHE_KEY_BOOT, JSON.stringify(paquete));
+    try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(paquete)); } catch (e) {}
     actualizarPillSync('✅ Parámetros actualizados');
     alert('✅ Parámetros y listas desplegables actualizados en todo el sistema.');
   });
