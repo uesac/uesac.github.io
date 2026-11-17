@@ -20,10 +20,21 @@ html, body { height: 100%; width: 100%; margin: 0; padding: 0; background: var(-
 
 /* PANTALLA DE LOGIN Y MODAL DE CAMBIO OBLIGATORIO DE CONTRASEÑA */
 #loginOverlay, #modalCambioPassword {
-  position: fixed; inset: 0; background: var(--forest-dark); z-index: 9999;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 16px; overflow-y: auto;
+  position: fixed; 
+  inset: 0; 
+  background-image: url('bkg.jpg'); 
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 9999;
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  justify-content: center;
+  padding: 16px; 
+  overflow-y: auto;
 }
+
 #modalCambioPassword { z-index: 10000; background: rgba(19, 34, 30, 0.96); }
 .login-top-bar { display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
 .login-header { color: #fff; font-size: 22px; font-weight: 800; letter-spacing: 0.3px; }
