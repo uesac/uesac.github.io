@@ -1,9 +1,3 @@
-/**
- * ============================================================================
- * LÓGICA FRONTEND — UESAC.GITHUB.IO (app.js) CON ORDENAMIENTO LOCAL Y DISEÑO SAAS
- * ============================================================================
- */
-
 var API_URL = 'https://script.google.com/macros/s/AKfycbyLFxbzBKqP2BRIXoywWpFgxdDXImNetYSVerQPYFDgJ91ChUYisEm3BAMdgKDoRMnd/exec';
 var SESSION_TOKEN_KEY = 'sac_session_token_v2';
 var SESSION_CACHE_KEY = 'sac_session_data_v2';
@@ -14,11 +8,10 @@ var TOKEN_ACTUAL = null;
 var SEC_ACTIVA = 'SERVICIOS_PUBLICOS';
 var TIPO_ACTIVO = 'Pendientes';
 var MODO_VISTA_ADMIN_GESTOR = 'MIS_ASIGNADOS';
+var MODO_VISTA_MODERADOR = 'PLANILLA';
 var CORREO_EDITANDO_PERM = null;
 var CHARTS_VIVO = {};
 var INTERVALO_RADAR_ID = null;
-
-// Estado de ordenamiento local por columna y dirección
 var ORDEN_ACTIVO = { columna: null, direccion: 'asc' };
 
 /* ============================================================================
@@ -264,6 +257,12 @@ function sincronizarConServidor(mostrarAviso) {
   });
 }
 
+function esModeradorDeSec_(sec) {
+  if (!USUARIO_SESION || USUARIO_SESION.esAdmin) return false;
+  return (sec === 'SERVICIOS_PUBLICOS' && Boolean(USUARIO_SESION.esModeradorSP)) ||
+         (sec === 'OBRAS_PUBLICAS' && Boolean(USUARIO_SESION.esModeradorOP));
+}
+
 function abrirEntornoTrabajo(tipoInicial) {
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('appShell').style.display = 'flex';
@@ -290,13 +289,19 @@ function abrirEntornoTrabajo(tipoInicial) {
     bienvenidaEl.textContent = obtenerSaludoHorario() + txtDep;
   }
 
-  // Mostrar pestañas de navegación exclusivamente para el rol Administrador
+  // Visibilidad de pestañas superiores: solo para Admins que tengan habilitada cada pestaña
+  var verVivo = Boolean(u.esAdmin && u.verPanelEnVivo);
+  var verCarga = Boolean(u.esAdmin && u.verCarga);
+  var verPerm = Boolean(u.esAdmin && u.verPermisos);
+  var verConf = Boolean(u.esAdmin && u.verConfig);
+  var tienePestanasExtra = Boolean(verVivo || verCarga || verPerm || verConf);
+
   var navPlanillaEl = document.getElementById('navPlanilla');
-  if (navPlanillaEl) navPlanillaEl.classList.toggle('hidden', !u.esAdmin);
-  document.getElementById('navVivo').classList.toggle('hidden', !u.esAdmin);
-  document.getElementById('navCarga').classList.toggle('hidden', !u.esAdmin);
-  document.getElementById('navPermisos').classList.toggle('hidden', !u.esAdmin);
-  document.getElementById('navConfig').classList.toggle('hidden', !u.esAdmin);
+  if (navPlanillaEl) navPlanillaEl.classList.toggle('hidden', !tienePestanasExtra);
+  document.getElementById('navVivo').classList.toggle('hidden', !verVivo);
+  document.getElementById('navCarga').classList.toggle('hidden', !verCarga);
+  document.getElementById('navPermisos').classList.toggle('hidden', !verPerm);
+  document.getElementById('navConfig').classList.toggle('hidden', !verConf);
 
   var btnCsv = document.getElementById('btnDescargarCSV');
   if (btnCsv) btnCsv.classList.toggle('hidden', !u.esAdmin);
@@ -319,7 +324,6 @@ function abrirEntornoTrabajo(tipoInicial) {
   TIPO_ACTIVO = tipoInicial || 'Pendientes';
 
   cambiarSecretariaActiva(SEC_ACTIVA);
-  cambiarTipoReclamoActivo(TIPO_ACTIVO);
   iniciarRadarTiempoReal();
 }
 
@@ -378,25 +382,32 @@ function cerrarSesionSAC() {
  * 2. MOTOR DE GRILLA INTERACTIVA, ORDENAMIENTO LOCAL Y GUARDADO EN 0 MS
  * ============================================================================ */
 
-function puedeUsuarioVerFila(r, claveSec, tipoReclamo) {
+function puedeUsuarioVerFila(r, claveSec, tipoReclamo, forzarSoloAsignados) {
   if (!USUARIO_SESION) return false;
   var u = USUARIO_SESION;
 
-  if (!u.esAdmin) return true;
-  if (!u.tieneAsignacionesGestor || MODO_VISTA_ADMIN_GESTOR === 'TODA_LA_PLANILLA') {
-    return true;
+  if (u.esAdmin) {
+    if (!forzarSoloAsignados && (!u.tieneAsignacionesGestor || MODO_VISTA_ADMIN_GESTOR === 'TODA_LA_PLANILLA')) {
+      return true;
+    }
+  } else if (esModeradorDeSec_(claveSec)) {
+    if (!forzarSoloAsignados && MODO_VISTA_MODERADOR === 'PLANILLA') {
+      return true;
+    }
   }
 
-  var listaAsig = ((u[claveSec] && u[claveSec][tipoReclamo]) || []).map(function(x) { return String(x).trim().toUpperCase(); });
+  var listaAsig = ((u[claveSec] && u[claveSec][tipoReclamo]) || []).map(function(x) {
+    return String(x).trim().toUpperCase();
+  });
   if (listaAsig.length === 0) return false;
 
   if (tipoReclamo === 'Pendientes') {
-    return listaAsig.indexOf(String(r.gestorDep || '').toUpperCase()) !== -1 ||
-           listaAsig.indexOf(String(r.depPrincipal || '').toUpperCase()) !== -1 ||
-           listaAsig.indexOf(String(r.asunto || '').toUpperCase()) !== -1;
+    return listaAsig.indexOf(String(r.gestorDep || '').trim().toUpperCase()) !== -1 ||
+           listaAsig.indexOf(String(r.depPrincipal || '').trim().toUpperCase()) !== -1 ||
+           listaAsig.indexOf(String(r.asunto || '').trim().toUpperCase()) !== -1;
   } else {
-    return listaAsig.indexOf(String(r.dependencia || '').toUpperCase()) !== -1 ||
-           listaAsig.indexOf(String(r.problema || '').toUpperCase()) !== -1;
+    return listaAsig.indexOf(String(r.dependencia || '').trim().toUpperCase()) !== -1 ||
+           listaAsig.indexOf(String(r.problema || '').trim().toUpperCase()) !== -1;
   }
 }
 
@@ -404,12 +415,50 @@ function cambiarSecretariaActiva(sec) {
   SEC_ACTIVA = sec;
   document.getElementById('btnSecSP').classList.toggle('active-sec', sec === 'SERVICIOS_PUBLICOS');
   document.getElementById('btnSecOP').classList.toggle('active-sec', sec === 'OBRAS_PUBLICAS');
+
+  var esMod = esModeradorDeSec_(sec);
+  var btnPlanillaMod = document.getElementById('btnTabPlanillaMod');
+  var selSubMod = document.getElementById('selSubTipoPlanillaMod');
+  if (btnPlanillaMod) btnPlanillaMod.classList.toggle('hidden', !esMod);
+
+  if (esMod) {
+    activarVistaPlanillaMod();
+  } else {
+    if (selSubMod) selSubMod.classList.add('hidden');
+    cambiarTipoReclamoActivo(TIPO_ACTIVO);
+  }
+}
+
+function activarVistaPlanillaMod() {
+  MODO_VISTA_MODERADOR = 'PLANILLA';
+  var selSub = document.getElementById('selSubTipoPlanillaMod');
+  if (selSub) {
+    selSub.classList.remove('hidden');
+    TIPO_ACTIVO = selSub.value || 'Pendientes';
+  }
+  var btnP = document.getElementById('btnTabPlanillaMod');
+  if (btnP) btnP.classList.add('active-ptes');
+  document.getElementById('btnTabPtes').classList.remove('active-ptes');
+  document.getElementById('btnTabReit').classList.remove('active-reit');
+  actualizarContadoresYSelectores();
+  renderizarGrillaReclamos();
+}
+
+function cambiarSubTipoPlanillaMod(subTipo) {
+  TIPO_ACTIVO = subTipo;
+  MODO_VISTA_MODERADOR = 'PLANILLA';
   actualizarContadoresYSelectores();
   renderizarGrillaReclamos();
 }
 
 function cambiarTipoReclamoActivo(tipo) {
+  MODO_VISTA_MODERADOR = 'MIS_RECLAMOS';
   TIPO_ACTIVO = tipo;
+  var btnP = document.getElementById('btnTabPlanillaMod');
+  var selSub = document.getElementById('selSubTipoPlanillaMod');
+  if (btnP) btnP.classList.remove('active-ptes');
+  if (selSub) selSub.classList.add('hidden');
+
   document.getElementById('btnTabPtes').classList.toggle('active-ptes', tipo === 'Pendientes');
   document.getElementById('btnTabReit').classList.toggle('active-reit', tipo === 'Reiterados');
   actualizarContadoresYSelectores();
@@ -417,22 +466,42 @@ function cambiarTipoReclamoActivo(tipo) {
 }
 
 function actualizarContadoresYSelectores() {
-  var ptes = (STATE.reclamos[SEC_ACTIVA].Pendientes || []).filter(function(r) { return puedeUsuarioVerFila(r, SEC_ACTIVA, 'Pendientes'); });
-  var reit = (STATE.reclamos[SEC_ACTIVA].Reiterados || []).filter(function(r) { return puedeUsuarioVerFila(r, SEC_ACTIVA, 'Reiterados'); });
+  var todosPtesSec = STATE.reclamos[SEC_ACTIVA].Pendientes || [];
+  var todosReitSec = STATE.reclamos[SEC_ACTIVA].Reiterados || [];
+  var esMod = esModeradorDeSec_(SEC_ACTIVA);
 
-  document.getElementById('cntPtes').textContent = ptes.length;
-  document.getElementById('cntReit').textContent = reit.length;
+  // Para el Moderador, las píldoras de Pendientes y Reiterados muestran sus reclamos propios asignados
+  var misPtes = todosPtesSec.filter(function(r) { return puedeUsuarioVerFila(r, SEC_ACTIVA, 'Pendientes', esMod); });
+  var misReit = todosReitSec.filter(function(r) { return puedeUsuarioVerFila(r, SEC_ACTIVA, 'Reiterados', esMod); });
 
-  var listaAct = (TIPO_ACTIVO === 'Pendientes') ? ptes : reit;
+  document.getElementById('cntPtes').textContent = misPtes.length;
+  document.getElementById('cntReit').textContent = misReit.length;
+
+  var cntPlanillaEl = document.getElementById('cntPlanillaMod');
+  if (cntPlanillaEl) {
+    cntPlanillaEl.textContent = todosPtesSec.length + todosReitSec.length;
+  }
+  var selSub = document.getElementById('selSubTipoPlanillaMod');
+  if (selSub && selSub.options.length >= 2) {
+    selSub.options[0].textContent = '📋 Pendientes de Secretaría (' + todosPtesSec.length + ')';
+    selSub.options[1].textContent = '🔁 Reiterados de Secretaría (' + todosReitSec.length + ')';
+  }
+
+  var listaAct = (TIPO_ACTIVO === 'Pendientes' ? todosPtesSec : todosReitSec).filter(function(r) {
+    return puedeUsuarioVerFila(r, SEC_ACTIVA, TIPO_ACTIVO, false);
+  });
+
   var depsMap = {};
-
   listaAct.forEach(function(r) {
     var d = (TIPO_ACTIVO === 'Pendientes') ? (r.gestorDep || r.depPrincipal) : r.dependencia;
     if (d) depsMap[d] = true;
   });
 
   if (USUARIO_SESION && USUARIO_SESION[SEC_ACTIVA] && USUARIO_SESION[SEC_ACTIVA][TIPO_ACTIVO]) {
-    if (!USUARIO_SESION.esAdmin || MODO_VISTA_ADMIN_GESTOR === 'MIS_ASIGNADOS') {
+    var viendoSoloAsignados = (!USUARIO_SESION.esAdmin && !esMod) ||
+                              (USUARIO_SESION.esAdmin && MODO_VISTA_ADMIN_GESTOR === 'MIS_ASIGNADOS') ||
+                              (esMod && MODO_VISTA_MODERADOR === 'MIS_RECLAMOS');
+    if (viendoSoloAsignados) {
       USUARIO_SESION[SEC_ACTIVA][TIPO_ACTIVO].forEach(function(asig) {
         if (asig) depsMap[asig] = true;
       });
@@ -482,7 +551,7 @@ function renderizarGrillaReclamos() {
   var tbl = document.getElementById('tablaReclamosDOM');
   var esPtes = (TIPO_ACTIVO === 'Pendientes');
   var base = (STATE.reclamos[SEC_ACTIVA][TIPO_ACTIVO] || []).filter(function(r) {
-    return puedeUsuarioVerFila(r, SEC_ACTIVA, TIPO_ACTIVO);
+    return puedeUsuarioVerFila(r, SEC_ACTIVA, TIPO_ACTIVO, false);
   });
 
   var fDep = document.getElementById('selFiltroDepTabla').value;
@@ -691,7 +760,10 @@ function guardarFilaOptimista(idContacto, filaHoja) {
  * ============================================================================ */
 
 function abrirModuloPrincipal(mod) {
-  if ((mod === 'VIVO' || mod === 'CARGA' || mod === 'PERMISOS' || mod === 'CONFIG') && (!USUARIO_SESION || !USUARIO_SESION.esAdmin)) return;
+  if (mod === 'VIVO' && (!USUARIO_SESION || !USUARIO_SESION.esAdmin || !USUARIO_SESION.verPanelEnVivo)) return;
+  if (mod === 'CARGA' && (!USUARIO_SESION || !USUARIO_SESION.esAdmin || !USUARIO_SESION.verCarga)) return;
+  if (mod === 'PERMISOS' && (!USUARIO_SESION || !USUARIO_SESION.esAdmin || !USUARIO_SESION.verPermisos)) return;
+  if (mod === 'CONFIG' && (!USUARIO_SESION || !USUARIO_SESION.esAdmin || !USUARIO_SESION.verConfig)) return;
 
   ['PLANILLA', 'VIVO', 'CARGA', 'PERMISOS', 'CONFIG'].forEach(function(m) {
     document.getElementById('mod' + m).classList.toggle('active', m === mod);
@@ -949,7 +1021,10 @@ function agregarCorreoPerm() {
   if (!mail || mail.indexOf('@') === -1) return alert('Ingresá un correo válido.');
   if (!STATE.configPermisos.mapeos[sec]) STATE.configPermisos.mapeos[sec] = {};
   if (!STATE.configPermisos.mapeos[sec][mail]) {
-    STATE.configPermisos.mapeos[sec][mail] = { esAdmin: false, verPanelEnVivo: false, esModerador: false, Pendientes: [], Reiterados: [] };
+    STATE.configPermisos.mapeos[sec][mail] = {
+      esAdmin: false, verPanelEnVivo: false, verCarga: false, verPermisos: false, verConfig: false,
+      esModerador: false, Pendientes: [], Reiterados: []
+    };
   }
   inp.value = '';
   CORREO_EDITANDO_PERM = mail;
@@ -990,6 +1065,9 @@ function aplicarRolEnAmbasSecretarias() {
     }
     STATE.configPermisos.mapeos[s][CORREO_EDITANDO_PERM].esAdmin = Boolean(orig.esAdmin);
     STATE.configPermisos.mapeos[s][CORREO_EDITANDO_PERM].verPanelEnVivo = Boolean(orig.verPanelEnVivo);
+    STATE.configPermisos.mapeos[s][CORREO_EDITANDO_PERM].verCarga = Boolean(orig.verCarga);
+    STATE.configPermisos.mapeos[s][CORREO_EDITANDO_PERM].verPermisos = Boolean(orig.verPermisos);
+    STATE.configPermisos.mapeos[s][CORREO_EDITANDO_PERM].verConfig = Boolean(orig.verConfig);
     STATE.configPermisos.mapeos[s][CORREO_EDITANDO_PERM].esModerador = Boolean(orig.esModerador);
   });
   renderizarModuloPermisos();
@@ -1012,8 +1090,13 @@ function renderizarModuloPermisos() {
     var o = mSec[m];
     var cP = (o.Pendientes || []).length, cR = (o.Reiterados || []).length;
     var tags = [];
-    if (o.esAdmin) tags.push('👑 Admin');
-    if (o.verPanelEnVivo) tags.push('📊 Vivo');
+    if (o.esAdmin) {
+      tags.push('👑 Admin');
+      if (o.verPanelEnVivo) tags.push('📊 Panel');
+      if (o.verCarga) tags.push('🚀 Carga');
+      if (o.verPermisos) tags.push('🔐 Perm');
+      if (o.verConfig) tags.push('⚙️ Cfg');
+    }
     if (o.esModerador) tags.push('🛡️ Mod');
     tags.push('P:' + cP + ' | R:' + cR);
 
@@ -1041,9 +1124,21 @@ function renderizarModuloPermisos() {
   } else {
     banner.style.display = 'flex';
     var uObj = mSec[CORREO_EDITANDO_PERM];
-    document.getElementById('chkEsAdminPerm').checked = Boolean(uObj.esAdmin);
-    document.getElementById('chkVerPanelVivoPerm').checked = Boolean(uObj.verPanelEnVivo);
+    var esAdminSel = Boolean(uObj.esAdmin);
+
+    document.getElementById('chkEsAdminPerm').checked = esAdminSel;
     document.getElementById('chkEsModeradorPerm').checked = Boolean(uObj.esModerador);
+
+    var chkVivo = document.getElementById('chkVerPanelVivoPerm');
+    var chkCarga = document.getElementById('chkVerCargaPerm');
+    var chkPerm = document.getElementById('chkVerPermisosPerm');
+    var chkConf = document.getElementById('chkVerConfigPerm');
+
+    if (chkVivo) { chkVivo.checked = Boolean(uObj.verPanelEnVivo); chkVivo.disabled = !esAdminSel; }
+    if (chkCarga) { chkCarga.checked = Boolean(uObj.verCarga); chkCarga.disabled = !esAdminSel; }
+    if (chkPerm) { chkPerm.checked = Boolean(uObj.verPermisos); chkPerm.disabled = !esAdminSel; }
+    if (chkConf) { chkConf.checked = Boolean(uObj.verConfig); chkConf.disabled = !esAdminSel; }
+
     document.getElementById('lblCorreoSeleccionadoPerm').innerHTML = '🎯 Configurando accesos para: <span style="color:#2563eb;">' + CORREO_EDITANDO_PERM + '</span>';
 
     var asigP = uObj.Pendientes || [];
@@ -1177,6 +1272,8 @@ function guardarPermisosWeb(aplicarAhora) {
     STATE = nuevoPaquete;
     USUARIO_SESION = nuevoPaquete.perfilUsuario;
     try { sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(nuevoPaquete)); } catch (e) {}
+    abrirEntornoTrabajo(TIPO_ACTIVO);
+    abrirModuloPrincipal('PERMISOS');
     mostrarMsgPerm(true, '✅ ¡Permisos guardados y aplicados correctamente! (Usuarios nuevos creados con clave inicial "uesac123").');
   });
 }
