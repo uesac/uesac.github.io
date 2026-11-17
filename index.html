@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🏛️ Unidad Ejecutora - SAC</title>
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=4">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
-  <script src="app.js?v=3" defer></script>
+  <script src="app.js?v=4" defer></script>
 </head>
 <body>
 
@@ -109,6 +109,14 @@
           <button type="button" class="sw-btn active-sec" id="btnSecSP" onclick="cambiarSecretariaActiva('SERVICIOS_PUBLICOS')">🏢 Servicios Públicos</button>
           <button type="button" class="sw-btn" id="btnSecOP" onclick="cambiarSecretariaActiva('OBRAS_PUBLICAS')">🏗️ Obras Públicas</button>
           <span class="divider">|</span>
+          <!-- Píldora exclusiva para Moderadores para ver toda la planilla de la Secretaría -->
+          <button type="button" class="sw-btn hidden" id="btnTabPlanillaMod" onclick="activarVistaPlanillaMod()">
+            📑 Planilla (<span id="cntPlanillaMod">0</span>)
+          </button>
+          <select id="selSubTipoPlanillaMod" class="hidden" onchange="cambiarSubTipoPlanillaMod(this.value)" style="font-weight:700; border-color:#059669; color:#065f46; background:#ecfdf5;">
+            <option value="Pendientes">📋 Todos los Pendientes</option>
+            <option value="Reiterados">🔁 Todos los Reiterados</option>
+          </select>
           <button type="button" class="sw-btn active-ptes" id="btnTabPtes" onclick="cambiarTipoReclamoActivo('Pendientes')">
             📋 Ver mis reclamos pendientes (<span id="cntPtes">0</span>)
           </button>
@@ -349,18 +357,31 @@
             </div>
 
             <div class="admin-banner" id="bannerRolesEspeciales" style="display:none;">
-              <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
-                <label title="Permite editar cualquier reclamo de la Secretaría">
+              <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                <label title="Permite ver y editar todos los reclamos de ambas Secretarías">
                   <input type="checkbox" id="chkEsAdminPerm" onchange="alCambiarTildeEspecial('esAdmin', this.checked)">
                   <span>👑 Administrador</span>
                 </label>
-                <label title="Habilita a este usuario para ver la pestaña de estadísticas '📊 Panel en vivo'">
-                  <input type="checkbox" id="chkVerPanelVivoPerm" onchange="alCambiarTildeEspecial('verPanelEnVivo', this.checked)">
-                  <span>📊 Habilitar "Panel en vivo"</span>
-                </label>
-                <label title="Permite ver y editar todos los reclamos de esta Secretaría">
+                <label title="Permite ver toda la planilla de esta Secretaría y además tener reclamos propios asignados">
                   <input type="checkbox" id="chkEsModeradorPerm" onchange="alCambiarTildeEspecial('esModerador', this.checked)">
                   <span>🛡️ Moderador de Secretaría</span>
+                </label>
+                <span style="color:#d97706;">| Pestañas Admin:</span>
+                <label title="Habilita al Administrador a ver la pestaña '📊 Panel'">
+                  <input type="checkbox" id="chkVerPanelVivoPerm" onchange="alCambiarTildeEspecial('verPanelEnVivo', this.checked)">
+                  <span>📊 Panel</span>
+                </label>
+                <label title="Habilita al Administrador a ver la pestaña '🚀 Carga de planillas'">
+                  <input type="checkbox" id="chkVerCargaPerm" onchange="alCambiarTildeEspecial('verCarga', this.checked)">
+                  <span>🚀 Carga</span>
+                </label>
+                <label title="Habilita al Administrador a ver la pestaña '🔐 Permisos'">
+                  <input type="checkbox" id="chkVerPermisosPerm" onchange="alCambiarTildeEspecial('verPermisos', this.checked)">
+                  <span>🔐 Permisos</span>
+                </label>
+                <label title="Habilita al Administrador a ver la pestaña '⚙️ Configuración'">
+                  <input type="checkbox" id="chkVerConfigPerm" onchange="alCambiarTildeEspecial('verConfig', this.checked)">
+                  <span>⚙️ Config.</span>
                 </label>
               </div>
               <div style="display:flex; gap:6px; flex-wrap:wrap;">
@@ -450,7 +471,7 @@
     <!-- MÓDULO 5: CONFIGURACIÓN SIN TOCAR CÓDIGO INTERNO -->
     <section class="module-pane" id="modCONFIG">
       <div class="content-scroll">
-        <div class="card-panel" style="margin-bottom:14px;">
+        <div class="card-panel" style="max-width: 720px; margin: 0 auto 14px auto;">
           <h4>⚙️ Parámetros Dinámicos del Sistema (Modificables sin tocar el código fuente)</h4>
           <p style="color:#475569; margin:0 0 12px 0;">Desde acá podés agregar, editar o eliminar opciones de las listas desplegables de Estados (Pendientes y Reiterados) y los nombres de las carpetas de Google Drive.</p>
 
