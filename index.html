@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🏛️ Sistema SAC — Gestión y Análisis Estadístico</title>
+  <title>🏛️ Unidad Ejecutora - SAC</title>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
   <script src="app.js" defer></script>
@@ -12,7 +12,6 @@
 
   <!-- 1. PANTALLA DE CONTROL DE ACCESO CON VENTANA DE CARGA DIFUMINADA -->
  <div id="loginOverlay">
-    <!-- Ventana de carga superpuesta con reloj -->
     <div id="servidorCargandoOverlay" class="overlay-backdrop" style="display:none;">
       <div class="modal-difuminado">
         <div class="reloj-icono">
@@ -30,19 +29,18 @@
         <svg style="width: 38px; height: 38px; color: #059669;" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 2L2 7v2h20V7L12 2zm-7 9v7H3v2h18v-2h-2v-7h-3v7h-2v-7h-4v7H8v-7H5z"/>
         </svg>
-        <span style="font-size: 1.35rem; font-weight: 700; color: #111827;">Sistema SAC</span>
+        <span style="font-size: 1.35rem; font-weight: 700; color: #111827;">Unidad Ejecutora - SAC</span>
       </div>
 
       <div class="title-group" style="text-align: center; margin-bottom: 28px;">
         <h1 style="font-size: 1.5rem; font-weight: 700; color: #111827; margin-bottom: 6px;">Control de acceso</h1>
-        <p style="font-size: 0.9rem; color: #6b7280;">Portal de Gestión y Administración</p>
       </div>
 
       <div id="bloqueFormularioLogin">
         <div class="form-group" style="margin-bottom: 18px; text-align: left;">
           <label for="inpMailLogin" style="display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 6px;">Correo electrónico</label>
           <div class="input-wrapper" style="position: relative; display: flex; align-items: center;">
-            <input type="email" id="inpMailLogin" class="login-input" placeholder="usuario@institucion.gob.ar" autocomplete="username" disabled style="width: 100%; padding: 11px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.92rem; background: #fafafa;">
+            <input type="email" id="inpMailLogin" class="login-input" placeholder="tucorreo@gmail.com" autocomplete="username" disabled style="width: 100%; padding: 11px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.92rem; background: #fafafa;">
           </div>
         </div>
 
@@ -74,14 +72,14 @@
   <!-- 1.B MODAL OBLIGATORIO E IMPOSIBLE DE CERRAR PARA CAMBIO DE CONTRASEÑA INICIAL -->
   <div id="modalCambioPassword" class="hidden">
     <div class="login-card">
-      <h2>🔐 Cambio obligatorio de contraseña</h2>
+      <h2>Cambio obligatorio de contraseña</h2>
       <p style="color:#475569; font-size:13.5px; margin-bottom:16px;">
-        Por seguridad, en tu primer ingreso (o tras un restablecimiento) debés elegir una contraseña personal nueva de <b>al menos 8 caracteres</b> y distinta de <code>uesac123</code>.
+        Por seguridad, en el primer ingreso (o despues de un restablecimiento) tenes que elegir una contraseña personal nueva de <b>al menos 8 caracteres</b> y distinta de <code>uesac123</code>.
       </p>
       <input type="password" id="inpNuevaPass1" class="login-input" placeholder="Nueva contraseña (mínimo 8 caracteres)" autocomplete="new-password">
       <input type="password" id="inpNuevaPass2" class="login-input" placeholder="Repetir nueva contraseña" autocomplete="new-password">
       <button type="button" class="btn-primary" id="btnGuardarNuevaPass" onclick="confirmarCambioPasswordObligatorio()">
-        💾 Guardar nueva contraseña
+        Guardar nueva contraseña
       </button>
       <div id="msgCambioPassword" class="msg"></div>
     </div>
@@ -91,16 +89,16 @@
   <div id="appShell">
     <header class="topbar">
       <div class="brand">
-        <span>🏛️ SISTEMA MUNICIPAL DE ATENCIÓN CIUDADANA (SAC)</span>
+        <span>🏛️ Unidad Ejecutora - SAC</span>
         <span id="badgeRolActivo" class="role-badge"></span>
         <span id="badgeEstadoSync" class="sync-pill">🟢 Conectado</span>
       </div>
 
       <nav class="nav-modules">
         <span id="badgeBienvenidaTop" class="welcome-pill"></span>
-        <button type="button" class="mod-btn hidden" id="navVivo" onclick="abrirModuloPrincipal('VIVO')">📊 Panel en vivo</button>
+        <button type="button" class="mod-btn hidden" id="navVivo" onclick="abrirModuloPrincipal('VIVO')">📊 Panel</button>
         <button type="button" class="mod-btn hidden" id="navCarga" onclick="abrirModuloPrincipal('CARGA')">🚀 Carga de planillas</button>
-        <button type="button" class="mod-btn hidden" id="navPermisos" onclick="abrirModuloPrincipal('PERMISOS')">🔐 Asignar permisos</button>
+        <button type="button" class="mod-btn hidden" id="navPermisos" onclick="abrirModuloPrincipal('PERMISOS')">🔐 Permisos</button>
         <button type="button" class="mod-btn hidden" id="navConfig" onclick="abrirModuloPrincipal('CONFIG')">⚙️ Configuración</button>
         <button type="button" class="mod-btn btn-f11" onclick="alternarPantallaCompleta()">⛶ Pantalla completa</button>
         <button type="button" class="mod-btn btn-logout" onclick="cerrarSesionSAC()" title="Cerrar sesión y borrar datos en caché">🚪 Salir</button>
@@ -249,7 +247,7 @@
     <section class="module-pane" id="modCARGA">
       <div class="content-scroll">
         <div class="card-panel" style="max-width: 720px; margin: 0 auto;">
-          <h4>📥 Cargar crudo (.xlsx desde Drive o desde tu PC)</h4>
+          <h4>📥 Cargar crudo </h4>
           <div class="grid-2">
             <div>
               <label class="lbl">🏢 1. ¿A qué Secretaría cargar los datos?</label>
@@ -268,7 +266,7 @@
           </div>
 
           <div style="margin-bottom:10px;">
-            <label class="lbl">📂 Opción A: Archivo crudo en carpeta "Carga_Crudos_SAC" (Drive)</label>
+            <label class="lbl">📂 Carga archivos crudos</label>
             <div style="display:flex; gap:6px;">
               <select id="selArchivoCrudoDrive" style="flex:1;">
                 <option value="">Hacé clic en "Buscar en Drive"...</option>
@@ -278,7 +276,7 @@
           </div>
 
           <div style="margin-bottom:10px;">
-            <label class="lbl">💻 Opción B: O seleccionar archivo .xlsx directo desde tu PC</label>
+            <label class="lbl">💻 Cargar archivos .xlsx (Opcional)</label>
             <input type="file" id="inpArchivoCrudoPC" accept=".xlsx,.xls">
           </div>
 
@@ -295,10 +293,10 @@
 
           <label class="check-row">
             <input type="checkbox" id="chkBackupCarga" checked>
-            <span>💾 <b>Resguardo automático previo:</b> Guardar backup en carpeta <em>BackUp_Panel</em> de Drive antes de cargar.</span>
+            <span>💾 <b>Backup</b> </span>
           </label>
 
-          <button type="button" class="btn-primary" style="margin-top:10px;" onclick="procesarCargaCrudo()">🚀 Ejecutar</button>
+          <button type="button" class="btn-primary" style="margin-top:10px;" onclick="procesarCargaCrudo()">🚀 Iniciar</button>
           <div id="cajaEstadoCarga" class="msg"></div>
         </div>
       </div>
