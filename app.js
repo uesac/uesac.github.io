@@ -290,8 +290,10 @@ function abrirEntornoTrabajo(tipoInicial) {
     bienvenidaEl.textContent = obtenerSaludoHorario() + txtDep;
   }
 
-  var tieneOtrosModulos = Boolean(u.esAdmin || u.verPanelEnVivo);
-  document.getElementById('navVivo').classList.toggle('hidden', !u.verPanelEnVivo);
+  // Mostrar pestañas de navegación exclusivamente para el rol Administrador
+  var navPlanillaEl = document.getElementById('navPlanilla');
+  if (navPlanillaEl) navPlanillaEl.classList.toggle('hidden', !u.esAdmin);
+  document.getElementById('navVivo').classList.toggle('hidden', !u.esAdmin);
   document.getElementById('navCarga').classList.toggle('hidden', !u.esAdmin);
   document.getElementById('navPermisos').classList.toggle('hidden', !u.esAdmin);
   document.getElementById('navConfig').classList.toggle('hidden', !u.esAdmin);
@@ -689,12 +691,13 @@ function guardarFilaOptimista(idContacto, filaHoja) {
  * ============================================================================ */
 
 function abrirModuloPrincipal(mod) {
-  if (mod === 'VIVO' && (!USUARIO_SESION || !USUARIO_SESION.verPanelEnVivo)) return;
-  if ((mod === 'CARGA' || mod === 'PERMISOS' || mod === 'CONFIG') && (!USUARIO_SESION || !USUARIO_SESION.esAdmin)) return;
+  if ((mod === 'VIVO' || mod === 'CARGA' || mod === 'PERMISOS' || mod === 'CONFIG') && (!USUARIO_SESION || !USUARIO_SESION.esAdmin)) return;
 
   ['PLANILLA', 'VIVO', 'CARGA', 'PERMISOS', 'CONFIG'].forEach(function(m) {
     document.getElementById('mod' + m).classList.toggle('active', m === mod);
   });
+  var navPlanillaEl = document.getElementById('navPlanilla');
+  if (navPlanillaEl) navPlanillaEl.classList.toggle('active', mod === 'PLANILLA');
   document.getElementById('navVivo').classList.toggle('active', mod === 'VIVO');
   document.getElementById('navCarga').classList.toggle('active', mod === 'CARGA');
   document.getElementById('navPermisos').classList.toggle('active', mod === 'PERMISOS');
